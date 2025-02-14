@@ -35,5 +35,7 @@ docker-compose.override.yml
 
 # FastAPI 실행 관련 파일
 instance/
+static/
+*.h5
 
 ..github/

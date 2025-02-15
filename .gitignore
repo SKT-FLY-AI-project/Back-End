@@ -39,3 +39,6 @@ static/
 *.h5
 
 ..github/
+
+app/config.py
+app/api/router/tmp/

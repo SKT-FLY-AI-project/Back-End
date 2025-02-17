@@ -13,7 +13,7 @@ from PIL import Image
 from app.utils.opencv_utils import get_color_name
 from langchain.prompts import PromptTemplate
 
-from app.models.llm_model import llm_model  # 미리 로드된 모델 불러오기
+from app.models.llm_model import LLMModel  # 미리 로드된 모델 불러오기
 from app.services.text_processing import clean_and_restore_spacing
 
 # Hugging Face 모델 캐시 경로 설정
@@ -21,7 +21,10 @@ os.environ['HF_HOME'] = "D:/huggingface_models"
 client = Groq(api_key="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")
 
 def generate_vlm_description_qwen(image_path):
-    """미리 로드된 LLM 모델을 사용해 그림 설명 생성"""
+    # 모델 인스턴스 생성 및 로드
+    llm_model = LLMModel()
+    llm_model.load_model()  # FastAPI 실행 시 모델을 한 번 로드
+    
     model, processor = llm_model.get_model()  # 로드된 모델 가져오기
     image = Image.open(image_path).convert("RGB").resize((512, 512))
 

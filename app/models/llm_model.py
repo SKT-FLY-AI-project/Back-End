@@ -23,7 +23,3 @@ class LLMModel:
         if self.model is None or self.processor is None:
             self.load_model()
         return self.model, self.processor
-
-# 모델 인스턴스 생성 및 로드
-llm_model = LLMModel()
-llm_model.load_model()  # FastAPI 실행 시 모델을 한 번 로드

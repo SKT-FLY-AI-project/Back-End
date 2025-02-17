@@ -13,7 +13,7 @@ from PIL import Image
 from transformers import AutoModelForVision2Seq, AutoProcessor
 from qwen_vl_utils import process_vision_info
 
-from app.opencv_utils import get_color_name
+from app.utils.opencv_utils import get_color_name
 from langchain.prompts import PromptTemplate
 
 

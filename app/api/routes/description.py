@@ -2,8 +2,8 @@ from fastapi import APIRouter, UploadFile, File, Depends
 from PIL import Image
 import numpy as np
 from app.config import UPLOAD_DIR
-from app.opencv_utils import load_and_preprocess_image, detect_edges, extract_dominant_colors
-from app.llm_utils import generate_vlm_description_qwen, generate_rich_description, text_to_speech
+from app.utils.opencv_utils import load_and_preprocess_image, detect_edges, extract_dominant_colors
+from app.utils.llm_utils import generate_vlm_description_qwen, generate_rich_description, text_to_speech
 
 import shutil
 import sys

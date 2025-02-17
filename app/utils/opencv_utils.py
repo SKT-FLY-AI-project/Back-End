@@ -32,7 +32,7 @@ def detect_painting_region(image, min_area_ratio=0.2):
     if detected_regions:
         # 가장 큰 사각형 영역 선택
         x, y, w, h = max(detected_regions, key=lambda r: r[2] * r[3])
-        
+        print(x, y, w, h)
         # 전체 이미지 대비 크롭된 영역이 너무 작으면 원본 반환
         img_area = image.shape[0] * image.shape[1]
         cropped_area = w * h
@@ -85,8 +85,6 @@ def display_results(image_path):
     painting_region = detect_painting_region(image)  # 밝기 조정 없이 원본 그대로 사용
     edges = detect_edges(image)
     dominant_colors = extract_dominant_colors(painting_region)
-    
-    
     
     plt.figure(figsize=(12, 6))
 

@@ -6,6 +6,7 @@ from app.config import UPLOAD_DIR
 from app.s3_utils import upload_to_s3
 from app.model_utils import model_manager
 from app.image_utils import detect_painting_region, preprocess_image
+
 import io
 import os
 

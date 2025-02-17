@@ -42,7 +42,7 @@ async def classify(userid: str, file: UploadFile = File(...)):
     prediction = model.predict(processed_image)
     predicted_class = int(np.argmax(prediction, axis=1)[0])
     
-    output_filename = f"{userid}/detected_{file.filename}"
+    output_filename = f"{userid}/detected{predicted_class}_{file.filename}"
     output_path = os.path.join(UPLOAD_DIR, output_filename)
     painting.save(output_path)
     
@@ -53,7 +53,7 @@ async def classify(userid: str, file: UploadFile = File(...)):
             "status": 200,
             "data": {
                 "predicted_class": predicted_class,
-                "s3_url": s3_url
+                "image_url": s3_url
             },
             "message": "Success"
         }

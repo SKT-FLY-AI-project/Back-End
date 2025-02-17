@@ -3,9 +3,9 @@ from fastapi.responses import StreamingResponse
 from PIL import Image
 import numpy as np
 from app.config import UPLOAD_DIR
-from app.s3_utils import upload_to_s3
-from app.model_utils import model_manager
-from app.image_utils import detect_painting_region, preprocess_image
+from app.utils.s3_utils import upload_to_s3
+from app.utils.model_utils import model_manager
+from app.utils.image_utils import detect_painting_region, preprocess_image
 
 import io
 import os

@@ -6,98 +6,39 @@ import requests
 import json
 from dotenv import load_dotenv
 from groq import Groq
-import re
 import torch
 import numpy as np
 from PIL import Image
-from transformers import AutoModelForVision2Seq, AutoProcessor
-from qwen_vl_utils import process_vision_info
 
 from app.utils.opencv_utils import get_color_name
 from langchain.prompts import PromptTemplate
 
+from app.models.llm_model import LLMModel  # 미리 로드된 모델 불러오기
+from app.services.text_processing import clean_and_restore_spacing
 
 # Hugging Face 모델 캐시 경로 설정
 os.environ['HF_HOME'] = "D:/huggingface_models"
 client = Groq(api_key="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")
 
-# 모델 정보 설정
-model_name = "Qwen/Qwen2.5-VL-3B-Instruct"
-device = "cuda" if torch.cuda.is_available() else "cpu"
-
-# ✅ 모델 로드 (FP16으로 변경)
-model = AutoModelForVision2Seq.from_pretrained(
-    model_name,
-    torch_dtype=torch.float16,  # ✅ FP16 사용 (BF16 문제 방지)
-    device_map="auto",
-    max_memory={0: "10GiB", "cpu": "30GiB"}
-)
-
-processor = AutoProcessor.from_pretrained(model_name)
-
-import re
-
-# 정제 코드
-def clean_and_restore_spacing(text):
-    """
-    Qwen2.5-VL의 출력에서 시스템 메시지를 제거하고 띄어쓰기를 복원하는 함수.
-    """
-    # ✅ 1. "이 그림은" 또는 "이 장면은"이 나오기 전까지 모든 텍스트 제거
-    text = re.sub(r".*?(이 그림은|이 장면은)", r"\1", text, flags=re.IGNORECASE | re.DOTALL)
-
-    # ✅ 2. "이 이미지를 보고 ~ 설명하세요" 같은 프롬프트 제거
-    prompt_text = "이 이미지를 보고 장면, 색채, 구도, 분위기, 주요 특징을 설명하세요."
-    text = text.replace(prompt_text, "").strip()
-
-    # ✅ 3. 연속된 공백을 한 개의 공백으로 변경
-    text = re.sub(r"\s+", " ", text).strip()
-
-    # ✅ 4. 한글과 영어/숫자 사이에 공백 추가 (자연스러운 띄어쓰기 복원)
-    text = re.sub(r"([가-힣])([a-zA-Z0-9])", r"\1 \2", text)  # 한글 + 영어/숫자
-    text = re.sub(r"([a-zA-Z0-9])([가-힣])", r"\1 \2", text)  # 영어/숫자 + 한글
-
-    return text
-
-# 이미지 설명 VLM
 def generate_vlm_description_qwen(image_path):
-    # ✅ 이미지 로드 및 리사이징 (512x512)
-    image = Image.open(image_path).convert("RGB")
-    image = image.resize((512, 512)) # 일단은 크기 정규화 했는데 추후 수정 필요.
+    # 모델 인스턴스 생성 및 로드
+    llm_model = LLMModel()
+    llm_model.load_model()  # FastAPI 실행 시 모델을 한 번 로드
     
-    prompt = "이 이미지를 보고 장면, 색채, 구도, 분위기, 주요 특징을 설명하세요."
+    model, processor = llm_model.get_model()  # 로드된 모델 가져오기
+    image = Image.open(image_path).convert("RGB").resize((512, 512))
 
-    # ✅ 메시지 형식으로 변환 (apply_chat_template 사용)
     messages = [
-        {
-            "role": "user",
-            "content": [
-                {"type": "image", "image": image},
-                {"type": "text", "text": prompt},
-            ],
-        }
+        {"role": "user", "content": [{"type": "image", "image": image},
+                                     {"type": "text", "text": "이 그림을 설명하세요."}]}
     ]
+    text_input = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+    inputs = processor(text=[text_input], images=image, return_tensors="pt", padding=True).to(model.device)
 
-    # ✅ Chat Template 적용 (Qwen2.5-VL에서는 필수)
-    text_input = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True) # 이거 없으면 그냥 안돌아갑니다 진짜 중요함
-
-    # ✅ 모델 입력 변환
-    inputs = processor(
-        text=[text_input],  # ✅ 변환된 텍스트 입력
-        images=image,
-        return_tensors="pt",
-        padding=True,
-    ).to(model.device)
-
-    # ✅ 모델 실행 (토큰 수 최적화)
     with torch.no_grad():
-        outputs = model.generate(**inputs, max_new_tokens=256) # 128로 하니까 좀 짤리는듯;
+        outputs = model.generate(**inputs, max_new_tokens=256)
 
-    # ✅ 결과 디코딩 및 세로 출력 문제 해결
-    description = processor.batch_decode(outputs, skip_special_tokens=True, clean_up_tokenization_spaces=False)[0]
-    description = clean_and_restore_spacing(description)
-
-    return description
-
+    return clean_and_restore_spacing(processor.batch_decode(outputs, skip_special_tokens=True)[0])
 
 ########################### STEP 3 : 텍스트 생성 및 음성 변환 ###############################
 from gtts import gTTS

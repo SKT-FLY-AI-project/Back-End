@@ -4,6 +4,14 @@ from fastapi.staticfiles import StaticFiles
 from app.api.routes import auth, photo, description
 
 app = FastAPI()
+
+# @app.on_event("startup")
+# async def startup_event():
+#     """FastAPI 실행 시 LLM 모델을 미리 로드"""
+#     print("🚀 FastAPI 시작 - LLM 모델 로딩 중...")
+#     llm_model.load_model()
+#     print("✅ FastAPI 시작 완료!")
+
 app.include_router(photo.router)
 app.include_router(description.router)
 app.mount("/static", StaticFiles(directory='./app/static'), name="static")

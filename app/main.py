@@ -1,8 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from app.api.routes import photo, description
-# from app.models.llm_model import llm_model  # FastAPI 실행 시 LLM 모델 로드
+from app.api.routes import auth, photo, description
 
 app = FastAPI()
 

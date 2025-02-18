@@ -4,6 +4,7 @@ from PIL import Image
 import numpy as np
 from app.config import UPLOAD_DIR
 from app.utils.opencv_utils import load_and_preprocess_image, detect_edges, extract_dominant_colors, detect_painting_region
+from app.utils.cnn_utils import predict_image
 from app.utils.llm_utils import generate_vlm_description_qwen, generate_rich_description, text_to_speech
 from app.utils.s3_utils import upload_to_s3
 
@@ -63,9 +64,16 @@ async def describe_image(userid: str, file: UploadFile = File(...)):
     if not vlm_description:
         vlm_description = ["설명을 생성할 수 없습니다."]
 
+    # 해당 작품이 AI가 학습한 것이면, 제목이 return "{class_name}"
+    # 해당 작품이 AI가 학습한 것이 아니면, return "Unknown Title"
+    title = predict_image(image)
+    if isinstance(title, set):
+        title = list(title)[0]  # set을 리스트로 변환 후 첫 번째 값 가져오기
+    print("작품 제목 추출 결과입니다.", title)
+
     print("📝 풍부한 설명 생성 중...")
     # 🔹 LLM을 활용한 설명 생성
-    rich_description = generate_rich_description("분석된 그림", vlm_description[0], dominant_colors, edges)
+    rich_description = generate_rich_description(title, vlm_description[0], dominant_colors, edges)
 
     print("🎤 음성 변환 중...")
     # 🔹 음성 변환 실행 (음성 파일 저장)

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, Depends
+from fastapi import APIRouter, UploadFile, File, Request
 from pydantic import BaseModel
 from PIL import Image
 import numpy as np
@@ -9,6 +9,7 @@ from app.utils.llm_utils import generate_vlm_description_qwen, generate_rich_des
 from app.utils.s3_utils import upload_to_s3
 
 import shutil
+import json
 import sys
 import os
 import cv2
@@ -17,11 +18,13 @@ import cv2
 class ImageAnalysisResult(BaseModel):
     vlm_description: str  # 이미지에 대한 설명
     dominant_colors: list  # 주요 색상
-    edges: str  # 엣지 감지 결과
-    user_question: str  # 사용자의 질문 (선택적)
+    edges: list  # 엣지 감지 결과
 
 class ChatRequest(BaseModel):
     user_question: str  # 사용자가 입력한 질문
+    
+class MessageRequest(BaseModel):
+    message: str
 
 router = APIRouter(prefix="/chat", tags=["Chatbot"])
 
@@ -51,7 +54,7 @@ async def describe_image(userid: str, file: UploadFile = File(...)):
     # 이미지 저장 전에 RGB → BGR 변환 후 저장
     cv2.imwrite(processed_file_path, cv2.cvtColor(image, cv2.COLOR_RGB2BGR))
 
-    s3_url = upload_to_s3(userid, processed_file_path, f"processed_{file.filename}")
+    s3_url = upload_to_s3(userid, processed_file_path, f"{userid}/processed_{file.filename}")
 
     print("🔧 Qwen2.5-VL 설명 생성 중...")
     # ✅ Qwen2.5-VL 실행하여 설명 생성
@@ -82,7 +85,7 @@ async def describe_image(userid: str, file: UploadFile = File(...)):
     text_to_speech(rich_description, output_file=audio_path)
 
     print("✅ 분석 완료, 결과 반환 준비 완료")
-
+    print(edges)
     # 🔹 결과 JSON 반환
     return {
         # "image_path": file_path,
@@ -91,21 +94,60 @@ async def describe_image(userid: str, file: UploadFile = File(...)):
         "rich_description": rich_description,
         "dominant_colors": dominant_colors.tolist(),
         "edges_detected": "명확히 탐지됨" if edges.sum() > 10000 else "불명확",
+        # "edges_detected": edges,
+        "edges": edges,
         "audio_url": f"/static/{audio_filename}"  # 프론트엔드에서 음성 파일 접근 가능하도록 URL 제공
     }
     
-@router.post("/user-prompt/")
+@router.post("/bot")
+async def chatbot(request: Request):
+    """
+    사용자가 질문을 하면, 분석된 이미지 결과를 바탕으로 답변을 생성하는 API 엔드포인트.
+    """
+    body = await request.json()  # 요청 본문을 JSON으로 변환
+    print("📥 받은 요청:", body)  # 요청 본문 출력
+
+    try:
+        request_data = MessageRequest(**body)  # BaseModel에 맞게 변환
+    except Exception as e:
+        print("❌ 요청 데이터 변환 오류:", e)
+        return {"error": "잘못된 요청 형식입니다."}
+
+    prompt = f"""
+        사용자의 질문: "{request_data.message}"
+        
+        위 정보를 기반으로 사용자의 질문에 대해 상세하고 유익한 답변을 제공하세요.
+        """
+    
+    answer = generate_rich_description("분석된 그림", prompt, [], [])
+    
+    print("\n💬 AI의 답변:")
+    print(answer)
+
+    return json.loads(json.dumps({"response": answer}, ensure_ascii=False))
+
+
+@router.post("/user-prompt")
 async def user_prompt(request: ChatRequest, analysis_result: ImageAnalysisResult):
     """
     사용자가 질문을 하면, 분석된 이미지 결과를 바탕으로 답변을 생성하는 API 엔드포인트.
     """
     
     # 전달된 분석 결과를 이용해 프롬프트 생성
+    # prompt = f"""
+    #     사용자는 '{analysis_result.vlm_description}' 작품에 대해 질문하고 있습니다.
+    #     작품 설명: {analysis_result.vlm_description}
+    #     주요 색상: {analysis_result.dominant_colors}
+    #     엣지 감지 결과: {analysis_result.edges}
+        
+    #     사용자의 질문: "{request.user_question}"
+        
+    #     위 정보를 기반으로 사용자의 질문에 대해 상세하고 유익한 답변을 제공하세요.
+    #     """
     prompt = f"""
         사용자는 '{analysis_result.vlm_description}' 작품에 대해 질문하고 있습니다.
         작품 설명: {analysis_result.vlm_description}
         주요 색상: {analysis_result.dominant_colors}
-        엣지 감지 결과: {analysis_result.edges}
         
         사용자의 질문: "{request.user_question}"
         
@@ -128,6 +170,6 @@ async def user_prompt(request: ChatRequest, analysis_result: ImageAnalysisResult
         "vlm_description": analysis_result.vlm_description,
         "rich_description": answer,
         "dominant_colors": analysis_result.dominant_colors,
-        "edges_detected": "명확히 탐지됨" if sum(analysis_result.edges) > 10000 else "불명확",
+        # "edges_detected": "명확히 탐지됨" if sum(analysis_result.edges) > 10000 else "불명확",
         "audio_url": f"/static/{audio_filename}"  # 프론트엔드에서 음성 파일 접근 가능하도록 URL 제공
     }

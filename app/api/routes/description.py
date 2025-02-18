@@ -3,12 +3,14 @@ from pydantic import BaseModel
 from PIL import Image
 import numpy as np
 from app.config import UPLOAD_DIR
-from app.utils.opencv_utils import load_and_preprocess_image, detect_edges, extract_dominant_colors
+from app.utils.opencv_utils import load_and_preprocess_image, detect_edges, extract_dominant_colors, detect_painting_region
 from app.utils.llm_utils import generate_vlm_description_qwen, generate_rich_description, text_to_speech
+from app.utils.s3_utils import upload_to_s3
 
 import shutil
 import sys
 import os
+import cv2
 
 # 분석 결과를 묶는 클래스 정의
 class ImageAnalysisResult(BaseModel):
@@ -24,8 +26,8 @@ router = APIRouter(prefix="/chat", tags=["Chatbot"])
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-@router.post("/describe/")
-async def describe_image(file: UploadFile = File(...)):
+@router.post("/describe/{userid}")
+async def describe_image(userid: str, file: UploadFile = File(...)):
     """
     이미지를 업로드하면 분석을 수행하고 결과를 반환하는 API 엔드포인트.
     """
@@ -35,11 +37,20 @@ async def describe_image(file: UploadFile = File(...)):
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
     
-    print("🔍 이미지 분석 시작")
+    print("🔍 이미지 전처리")
     # 🔹 이미지 전처리 및 OpenCV 분석
-    image = load_and_preprocess_image(file_path)
+    image_pre = load_and_preprocess_image(file_path)    # detection 된 이미지가 들어온다면, 필요 없는 코드
+    image = detect_painting_region(image_pre)           # detection 된 이미지가 들어온다면, 필요 없는 코드
     edges = detect_edges(image)
     dominant_colors = extract_dominant_colors(image)
+
+    # 이미지 S3 업로드 
+    # 🔹 detected 이미지를 저장
+    processed_file_path = f"{UPLOAD_DIR}/processed_{file.filename}"
+    # 이미지 저장 전에 RGB → BGR 변환 후 저장
+    cv2.imwrite(processed_file_path, cv2.cvtColor(image, cv2.COLOR_RGB2BGR))
+
+    s3_url = upload_to_s3(userid, processed_file_path, f"processed_{file.filename}")
 
     print("🔧 Qwen2.5-VL 설명 생성 중...")
     # ✅ Qwen2.5-VL 실행하여 설명 생성
@@ -63,9 +74,11 @@ async def describe_image(file: UploadFile = File(...)):
     text_to_speech(rich_description, output_file=audio_path)
 
     print("✅ 분석 완료, 결과 반환 준비 완료")
+
     # 🔹 결과 JSON 반환
     return {
-        "image_path": file_path,
+        # "image_path": file_path,
+        "image_url" : s3_url, 
         "vlm_description": vlm_description[0],
         "rich_description": rich_description,
         "dominant_colors": dominant_colors.tolist(),

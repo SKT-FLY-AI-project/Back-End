@@ -10,7 +10,7 @@ s3_client = boto3.client(
 def upload_to_s3(userid: str, file_path: str, file_name: str):
     try:
         s3_client.upload_file(file_path, S3_BUCKET_NAME, file_name)
-        s3_url = f"https://{S3_BUCKET_NAME}.s3.{S3_REGION}.amazonaws.com/{file_name}"
+        s3_url = f"https://{S3_BUCKET_NAME}.s3.{S3_REGION}.amazonaws.com/{userid}/{file_name}"
         return s3_url
     except Exception as e:
         print("S3 Upload Error:", e)

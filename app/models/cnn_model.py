@@ -9,5 +9,3 @@ class ModelManager:
         if self.model is None:
             self.model = tf.keras.models.load_model(MODEL_PATH)
         return self.model
-
-model_manager = ModelManager()

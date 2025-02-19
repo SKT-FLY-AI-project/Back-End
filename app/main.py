@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from app.api.routes import auth, photo, description
+from app.api.routes import auth, photo, description, chat
 
 app = FastAPI()
 
@@ -14,6 +14,7 @@ app = FastAPI()
 
 app.include_router(photo.router)
 app.include_router(description.router)
+app.include_router(chat.router)
 app.mount("/static", StaticFiles(directory='./app/static'), name="static")
 
 @app.get("/")

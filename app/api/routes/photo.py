@@ -5,7 +5,6 @@ from PIL import Image
 import numpy as np
 from app.config import UPLOAD_DIR
 from app.utils.s3_utils import upload_to_s3
-from app.utils.model_utils import model_manager
 # from app.utils.image_utils import preprocess_image
 # from app.utils.opencv_utils import load_and_preprocess_image, detect_painting_region
 

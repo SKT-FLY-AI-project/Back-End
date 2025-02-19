@@ -1,4 +1,6 @@
 from fastapi import APIRouter, UploadFile, File, Request
+from fastapi.responses import StreamingResponse
+import asyncio
 from pydantic import BaseModel
 from PIL import Image
 import numpy as np
@@ -10,6 +12,7 @@ from app.utils.s3_utils import upload_to_s3
 
 import shutil
 import json
+import time
 import sys
 import os
 import cv2
@@ -30,75 +33,159 @@ router = APIRouter(prefix="/chat", tags=["Chatbot"])
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
+processing_status = {}  # 진행 상태 저장
+@router.get("/status/{userid}")
+async def get_status(userid: str):
+    """
+    특정 사용자의 진행 상태 반환
+    """
+    return {"status": processing_status.get(userid, "대기 중")}
+
+# @router.post("/describe/{userid}")
+# async def describe_image(userid: str, file: UploadFile = File(...)):
+#     """
+#     이미지를 업로드하면 분석을 수행하고 결과를 반환하는 API 엔드포인트.
+#     """
+#     file_path = f"{UPLOAD_DIR}/{file.filename}"
+    
+#     # 파일 저장
+#     with open(file_path, "wb") as buffer:
+#         shutil.copyfileobj(file.file, buffer)
+    
+#     print("🔍 이미지 전처리")
+#     # 🔹 이미지 전처리 및 OpenCV 분석
+#     image_pre = load_and_preprocess_image(file_path)    # detection 된 이미지가 들어온다면, 필요 없는 코드
+#     image = detect_painting_region(image_pre)           # detection 된 이미지가 들어온다면, 필요 없는 코드
+#     edges = detect_edges(image)
+#     dominant_colors = extract_dominant_colors(image)
+
+#     # 이미지 S3 업로드 
+#     # 🔹 detected 이미지를 저장
+#     processed_file_path = f"{UPLOAD_DIR}/processed_{file.filename}"
+#     # 이미지 저장 전에 RGB → BGR 변환 후 저장
+#     cv2.imwrite(processed_file_path, cv2.cvtColor(image, cv2.COLOR_RGB2BGR))
+
+#     s3_url = upload_to_s3(userid, processed_file_path, f"{userid}/processed_{file.filename}")
+
+#     print("🔧 Qwen2.5-VL 설명 생성 중...")
+#     # ✅ Qwen2.5-VL 실행하여 설명 생성
+#     vlm_description = generate_vlm_description_qwen(file_path)
+
+#     if isinstance(vlm_description, str):
+#         vlm_description = [vlm_description]
+
+#     # ✅ 설명이 없을 경우 기본값 설정
+#     if not vlm_description:
+#         vlm_description = ["설명을 생성할 수 없습니다."]
+
+#     # 해당 작품이 AI가 학습한 것이면, 제목이 return "{class_name}"
+#     # 해당 작품이 AI가 학습한 것이 아니면, return "Unknown Title"
+#     title = predict_image(image)
+#     if isinstance(title, set):
+#         title = list(title)[0]  # set을 리스트로 변환 후 첫 번째 값 가져오기
+#     print("작품 제목 추출 결과입니다.", title)
+
+#     print("📝 풍부한 설명 생성 중...")
+#     # 🔹 LLM을 활용한 설명 생성
+#     rich_description = generate_rich_description(title, vlm_description[0], dominant_colors, edges)
+#     print(rich_description)
+    
+#     print("🎤 음성 변환 중...")
+#     # 🔹 음성 변환 실행 (음성 파일 저장)
+#     audio_filename = f"output_{os.path.basename(file_path)}.mp3"
+#     audio_path = f"uploads/{audio_filename}"
+#     text_to_speech(rich_description, output_file=audio_path)
+
+#     print("✅ 분석 완료, 결과 반환 준비 완료")
+#     print(edges)
+#     # 🔹 결과 JSON 반환
+#     return {
+#         # "image_path": file_path,
+#         "image_url" : s3_url, 
+#         "vlm_description": vlm_description[0],
+#         "rich_description": rich_description,
+#         "dominant_colors": dominant_colors.tolist(),
+#         "edges_detected": "명확히 탐지됨" if edges.sum() > 10000 else "불명확",
+#         "audio_url": f"/static/{audio_filename}"  # 프론트엔드에서 음성 파일 접근 가능하도록 URL 제공
+#     }
+
+from fastapi.responses import StreamingResponse
+import asyncio
+
 @router.post("/describe/{userid}")
 async def describe_image(userid: str, file: UploadFile = File(...)):
     """
     이미지를 업로드하면 분석을 수행하고 결과를 반환하는 API 엔드포인트.
     """
+    # yield "START|이미지 업로드 중...\n"
+    file_name = file.filename
     file_path = f"{UPLOAD_DIR}/{file.filename}"
-    
+
     # 파일 저장
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
+    file.file.close()
+    file = open(file_path, "rb")
     
-    print("🔍 이미지 전처리")
-    # 🔹 이미지 전처리 및 OpenCV 분석
-    image_pre = load_and_preprocess_image(file_path)    # detection 된 이미지가 들어온다면, 필요 없는 코드
-    image = detect_painting_region(image_pre)           # detection 된 이미지가 들어온다면, 필요 없는 코드
-    edges = detect_edges(image)
-    dominant_colors = extract_dominant_colors(image)
+    async def process_image():
+        print(1)
+        yield json.dumps({"status": "이미지 전처리 중...", "completed": False}) + "\n"
+        image_pre = load_and_preprocess_image(file_path)
+        image = detect_painting_region(image_pre)
+        edges = detect_edges(image)
+        dominant_colors = extract_dominant_colors(image)
 
-    # 이미지 S3 업로드 
-    # 🔹 detected 이미지를 저장
-    processed_file_path = f"{UPLOAD_DIR}/processed_{file.filename}"
-    # 이미지 저장 전에 RGB → BGR 변환 후 저장
-    cv2.imwrite(processed_file_path, cv2.cvtColor(image, cv2.COLOR_RGB2BGR))
+        print(2)
+        yield json.dumps({"status": "이미지 저장 및 업로드 중...", "completed": False}) + "\n"
+        processed_file_path = f"{UPLOAD_DIR}/processed_{file_name}"
+        cv2.imwrite(processed_file_path, cv2.cvtColor(image, cv2.COLOR_RGB2BGR))
+        s3_url = upload_to_s3(userid, processed_file_path, f"{userid}/processed_{file_name}")
 
-    s3_url = upload_to_s3(userid, processed_file_path, f"{userid}/processed_{file.filename}")
+        print(3)
+        yield json.dumps({"status": "설명 생성 중...", "completed": False}) + "\n"
+        vlm_description = generate_vlm_description_qwen(file_path)
+        if isinstance(vlm_description, str):
+            vlm_description = [vlm_description]
+        if not vlm_description:
+            vlm_description = ["설명을 생성할 수 없습니다."]
 
-    print("🔧 Qwen2.5-VL 설명 생성 중...")
-    # ✅ Qwen2.5-VL 실행하여 설명 생성
-    vlm_description = generate_vlm_description_qwen(file_path)
+        print(4)
+        yield json.dumps({"status": "작품 제목 분석 중...", "completed": False}) + "\n"
+        title = predict_image(image)
+        if isinstance(title, set):
+            title = list(title)[0]
+        else:
+            title = "제목 없음"
 
-    if isinstance(vlm_description, str):
-        vlm_description = [vlm_description]
+        print(5)
+        yield json.dumps({"status": "풍부한 설명 생성 중...", "completed": False}) + "\n"
+        rich_description = generate_rich_description(title, vlm_description[0], dominant_colors, edges)
 
-    # ✅ 설명이 없을 경우 기본값 설정
-    if not vlm_description:
-        vlm_description = ["설명을 생성할 수 없습니다."]
+        print(6)
+        yield json.dumps({"status": "음성 변환 중...", "completed": False}) + "\n"
+        audio_filename = f"output_{os.path.basename(file_path)}.mp3"
+        audio_path = f"uploads/{audio_filename}"
+        # text_to_speech(rich_description, output_file=audio_path)
 
-    # 해당 작품이 AI가 학습한 것이면, 제목이 return "{class_name}"
-    # 해당 작품이 AI가 학습한 것이 아니면, return "Unknown Title"
-    title = predict_image(image)
-    if isinstance(title, set):
-        title = list(title)[0]  # set을 리스트로 변환 후 첫 번째 값 가져오기
-    print("작품 제목 추출 결과입니다.", title)
+        print(7)
+        final_result = {
+            "status": "완료",
+            "completed": True,
+            "data": {
+                "image_url": s3_url,
+                "title": title,
+                "vlm_description": vlm_description[0],
+                "rich_description": rich_description,
+                "dominant_colors": dominant_colors.tolist(),
+                "edges_detected": "명확히 탐지됨" if edges.sum() > 10000 else "불명확",
+                "audio_url": f"/static/{audio_filename}"
+            }
+        }
+        print(8)
+        yield json.dumps(final_result) + "\n"
+    print(9)
+    return StreamingResponse(process_image(), media_type="text/event-stream")
 
-    print("📝 풍부한 설명 생성 중...")
-    # 🔹 LLM을 활용한 설명 생성
-    rich_description = generate_rich_description(title, vlm_description[0], dominant_colors, edges)
-
-    print("🎤 음성 변환 중...")
-    # 🔹 음성 변환 실행 (음성 파일 저장)
-    audio_filename = f"output_{os.path.basename(file_path)}.mp3"
-    audio_path = f"uploads/{audio_filename}"
-    text_to_speech(rich_description, output_file=audio_path)
-
-    print("✅ 분석 완료, 결과 반환 준비 완료")
-    print(edges)
-    # 🔹 결과 JSON 반환
-    return {
-        # "image_path": file_path,
-        "image_url" : s3_url, 
-        "vlm_description": vlm_description[0],
-        "rich_description": rich_description,
-        "dominant_colors": dominant_colors.tolist(),
-        "edges_detected": "명확히 탐지됨" if edges.sum() > 10000 else "불명확",
-        # "edges_detected": edges,
-        "edges": edges,
-        "audio_url": f"/static/{audio_filename}"  # 프론트엔드에서 음성 파일 접근 가능하도록 URL 제공
-    }
-    
 @router.post("/bot")
 async def chatbot(request: Request):
     """

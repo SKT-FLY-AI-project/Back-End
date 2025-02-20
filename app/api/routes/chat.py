@@ -183,13 +183,7 @@ def retrieve_question(
         relevant_questions = [q for q in rag_questions if q["classification"] == "질문"]
         return relevant_questions
 
-    # # 랜덤으로 질문 하나 선택
-    # if relevant_questions:
-    #     return random.choice(relevant_questions)["question"]
-    # else:
-    #     return "이 작품을 어떻게 바라보면 좋을까요?"
-    # return relevant_questions
-    
+
 def generate_vts_response(user_input, conversation_history):
     """
     사용자의 입력과 대화 히스토리를 기반으로 적절한 반응과 질문을 생성하는 함수.
@@ -234,6 +228,7 @@ def generate_vts_response(user_input, conversation_history):
 
     return reaction[7:], question[7:]
 
+
 @router.post("/bot/{userid}")
 async def start_vts_conversation(userid: str, chat_data: ChatMessage = Body(...)):
     """VTS 방식의 감상 대화를 진행하는 엔드포인트"""
@@ -271,47 +266,3 @@ async def start_vts_conversation(userid: str, chat_data: ChatMessage = Body(...)
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"서버 오류: {str(e)}")
-
-
-# @router.post("/bot")
-# async def start_vts_conversation(chat_data: ChatMessage = Body(...)):
-#     """VTS 방식의 감상 대화를 진행하는 함수"""
-#     print("\n🖼️ VTS 감상 모드 시작!")
-#     try:
-#         request = chat_data.request
-
-#         # 클라이언트에서 대화 기록을 전송한 경우 사용
-#         conversation_history = chat_data.conversation_history or []
-
-#         # Anthropic 메시지 포맷으로 변환
-#         messages = []
-
-#         # 대화 기록이 있으면 메시지에 추가
-#         for item in conversation_history:
-#             if "question" in item and item["question"]:
-#                 messages.append({"role": "user", "content": item["question"]})
-#             if "response" in item and item["response"]:
-#                 messages.append({"role": "assistant", "content": item["response"]})
-
-#         messages.append({"role": "user", "content": request})
-
-#         # 대화 기록이 비어있으면 시스템 메시지 추가
-#         if not messages:
-#             messages.insert(0, {
-#                 "role": "system",
-#                 "content": "당신은 친절하고 도움이 되는 AI 어시스턴트입니다. 사용자의 질문에 한국어로 대답해주세요."
-#             })
-
-#         response = retrieve_question(messages,
-#                                      chat_data.image_title,
-#                                      chat_data.vlm_description,
-#                                      chat_data.dominant_colors
-#                                      )
-#         messages.append({"role": "system", "content": response})
-#         print(response)
-
-#         # 응답 반환
-#         return {"response": response}
-
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")

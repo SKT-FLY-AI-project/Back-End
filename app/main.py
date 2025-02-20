@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.api.routes import auth, photo, description, chat
+from app.api.routes.chat import init_app
 
 app = FastAPI()
 
@@ -16,7 +17,7 @@ app.include_router(photo.router)
 app.include_router(description.router)
 app.include_router(chat.router)
 app.mount("/static", StaticFiles(directory='./app/static'), name="static")
-
+init_app(app)
 @app.get("/")
 def read_root():
     return {"message": "Hello, FastAPI!"}

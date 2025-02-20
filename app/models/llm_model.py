@@ -14,7 +14,9 @@ class LLMModel:
         if self.model is None:
             print("🔹 LLM 모델 로드 중...")
             self.model = AutoModelForVision2Seq.from_pretrained(
-                self.model_name, torch_dtype=torch.float16, device_map="auto"
+                self.model_name,
+                torch_dtype=torch.float16 if self.device == "cuda" else torch.float32,
+                device_map="auto"
             )
             self.processor = AutoProcessor.from_pretrained(self.model_name)
             print("✅ LLM 모델 로드 완료!")

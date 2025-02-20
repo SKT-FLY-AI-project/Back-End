@@ -6,8 +6,9 @@ import json
 import asyncio
 import uuid
 from datetime import datetime
-from sqlalchemy import create_engine, Column, String, DateTime, Text, desc
+from sqlalchemy import create_engine, Column, String, DateTime, Text, Integer, ForeignKey, select, desc
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, relationship, Session
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlalchemy.future import select as async_select
@@ -15,30 +16,45 @@ import os
 from groq import Groq
 
 router = APIRouter()
-# 라우터를 사용할 때 필요한 prefix나 tags를 추가할 수 있습니다.
+# router = APIRouter(prefix="/chat", tags=["Chatbot"])
+
 os.environ['HF_HOME'] = "D:/huggingface_models"
 client = Groq(api_key="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")
 
-# SQLAlchemy 비동기 엔진 설정 (MySQL)
+# SQLAlchemy 설정
 DATABASE_URL = "mysql+aiomysql://root:1234@localhost/mydatabase"
+# 프로덕션 환경에서는 PostgreSQL 추천: "postgresql+asyncpg://user:password@localhost/dbname"
+
 async_engine = create_async_engine(DATABASE_URL, echo=True)
 async_session = async_sessionmaker(async_engine, expire_on_commit=False, class_=AsyncSession)
 
 Base = declarative_base()
 
-# ── 데이터베이스 모델 ──
+# 데이터베이스 모델
 class Conversation(Base):
     __tablename__ = "conversations"
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))  # 길이 36을 지정
     user_id = Column(String(255), index=True)
     image_title = Column(String(255))
     vlm_description = Column(Text, nullable=True)
-    # 대화 내용을 JSON 문자열로 저장 (예: [{"role": "user", "content": "...", "timestamp": "..."}, ...])
-    conversation_log = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    messages = relationship("Message", back_populates="conversation", cascade="all, delete-orphan")
 
-# 클라이언트 연결 관리 (WebSocket)
+class Message(Base):
+    __tablename__ = "messages"
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))  # 길이 36을 지정
+    conversation_id = Column(String(36), ForeignKey("conversations.id"))  # 길이 36을 지정
+    role = Column(String(255))  # "user" 또는 "assistant"
+    content = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    conversation = relationship("Conversation", back_populates="messages")
+
+
+# FastAPI 라우터
+router = APIRouter()
+
+# 클라이언트 연결 관리
 class ConnectionManager:
     def __init__(self):
         self.active_connections: Dict[str, WebSocket] = {}
@@ -63,7 +79,7 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-# ── Pydantic 모델 ──
+# 모델 정의
 class ChatMessage(BaseModel):
     request: str
     image_title: str
@@ -71,30 +87,24 @@ class ChatMessage(BaseModel):
     dominant_colors: Optional[List[List[int]]] = None
     conversation_id: Optional[str] = None  # 기존 대화를 이어가기 위한 ID
 
-class SessionRequest(BaseModel):
-    session_id: str
+# 대화 세션 관리 (메모리 캐시)
+conversation_sessions = {}
 
-# ── 메모리 캐시 (옵션) ──
-conversation_sessions: Dict[str, Any] = {}
 
-# ── DB 의존성 ──
+# DB 의존성
 async def get_db():
     async with async_session() as session:
         yield session
 
-# ── 데이터베이스 초기화 함수 ──
+# 데이터베이스 초기화 함수
 async def init_database():
     async with async_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-# ── 대화 생성 또는 조회 ──
-async def get_or_create_conversation(
-    db: AsyncSession, 
-    user_id: str, 
-    image_title: str, 
-    vlm_description: Optional[str] = None, 
-    conversation_id: Optional[str] = None
-):
+# 대화 생성 또는 조회
+async def get_or_create_conversation(db: AsyncSession, user_id: str, image_title: str, 
+                                    vlm_description: Optional[str] = None, 
+                                    conversation_id: Optional[str] = None):
     if conversation_id:
         # 기존 대화 조회
         result = await db.execute(
@@ -116,59 +126,39 @@ async def get_or_create_conversation(
         if existing_conversation:
             return existing_conversation
     
-    # 새 대화 생성: conversation_log 초기값은 빈 리스트(JSON)
+    # 새 대화 생성
     new_conversation = Conversation(
         user_id=user_id,
         image_title=image_title,
-        vlm_description=vlm_description,
-        conversation_log=json.dumps([])
+        vlm_description=vlm_description
     )
     db.add(new_conversation)
     await db.commit()
     await db.refresh(new_conversation)
     return new_conversation
 
-# ── 대화 로그 업데이트 함수 ──
-async def append_to_conversation_log(
-    db: AsyncSession, 
-    conversation: Conversation, 
-    role: str, 
-    content: str
-):
-    # 기존 대화 로그 불러오기 (JSON 파싱)
-    if conversation.conversation_log:
-        try:
-            log = json.loads(conversation.conversation_log)
-        except json.JSONDecodeError:
-            log = []
-    else:
-        log = []
-    # 새로운 메시지 추가
-    log.append({
-        "role": role,
-        "content": content,
-        "timestamp": datetime.utcnow().isoformat()
-    })
-    conversation.conversation_log = json.dumps(log)
-    conversation.updated_at = datetime.utcnow()
+# 메시지 저장
+async def save_message(db: AsyncSession, conversation_id: str, role: str, content: str):
+    message = Message(
+        conversation_id=conversation_id,
+        role=role,
+        content=content
+    )
+    db.add(message)
     await db.commit()
-    await db.refresh(conversation)
-    return log
+    return message
 
-# ── 대화 히스토리 조회 ──
+# 대화 히스토리 조회
 async def get_conversation_history(db: AsyncSession, conversation_id: str):
     result = await db.execute(
-        async_select(Conversation).where(Conversation.id == conversation_id)
+        async_select(Message)
+        .where(Message.conversation_id == conversation_id)
+        .order_by(Message.created_at)
     )
-    conversation = result.scalars().first()
-    if conversation and conversation.conversation_log:
-        try:
-            return json.loads(conversation.conversation_log)
-        except json.JSONDecodeError:
-            return []
-    return []
+    messages = result.scalars().all()
+    return [{"role": msg.role, "content": msg.content} for msg in messages]
 
-# ── 사용자의 모든 대화 조회 ──
+# 사용자의 모든 대화 조회
 async def get_user_conversations(db: AsyncSession, user_id: str, limit: int = 10):
     result = await db.execute(
         async_select(Conversation)
@@ -179,7 +169,7 @@ async def get_user_conversations(db: AsyncSession, user_id: str, limit: int = 10
     conversations = result.scalars().all()
     return conversations
 
-# ── HTTP 엔드포인트: 대화 시작/계속 ──
+# HTTP 엔드포인트: 대화 시작/계속
 @router.post("/bot/{userid}")
 async def start_vts_conversation(
     userid: str, 
@@ -200,31 +190,47 @@ async def start_vts_conversation(
         # 기존 대화 기록 불러오기
         conversation_history = await get_conversation_history(db, conversation.id)
         
-        # 사용자 메시지 저장
-        await append_to_conversation_log(db, conversation, "user", request)
-        conversation_history.append({"role": "user", "content": request})
-        
-        # LLM 호출을 위한 사용자 요청 리스트 생성 (모든 사용자 메시지 추출)
+        # 새로운 메시지 추가
+        await save_message(db, conversation.id, "user", request)
         user_requests = [msg["content"] for msg in conversation_history if msg["role"] == "user"]
         user_requests.append(request)
         
-        # LLM을 사용한 응답 생성 (예시 함수 사용)
+        # LLM을 사용한 응답 생성
         reaction, question = generate_vts_response(request, user_requests)
         response = reaction + '\n' + question
         
-        # 어시스턴트 응답 저장
-        await append_to_conversation_log(db, conversation, "assistant", response)
-        conversation_history.append({"role": "assistant", "content": response})
+        # 응답을 대화 기록에 저장
+        await save_message(db, conversation.id, "assistant", response)
+        
+        # 대화 최종 업데이트 시간 갱신
+        conversation.updated_at = datetime.utcnow()
+        await db.commit()
+        
+        # 메모리 캐시 업데이트
+        session_id = f"{userid}/{image_title}"
+        if session_id not in conversation_sessions:
+            conversation_sessions[session_id] = {
+                "conversation_id": conversation.id,
+                "messages": conversation_history + [
+                    {"role": "user", "content": request},
+                    {"role": "assistant", "content": response}
+                ],
+                "last_activity": time.time()
+            }
         
         return {
             "conversation_id": conversation.id,
             "response": response,
-            "conversation": conversation_history
+            "conversation": conversation_history + [
+                {"role": "user", "content": request},
+                {"role": "assistant", "content": response}
+            ]
         }
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"서버 오류: {str(e)}")
 
-# ── 대화 목록 조회 엔드포인트 ──
+# 대화 목록 조회 엔드포인트
 @router.get("/conversations/{userid}")
 async def get_user_conversation_list(
     userid: str,
@@ -234,27 +240,31 @@ async def get_user_conversation_list(
     try:
         conversations = await get_user_conversations(db, userid, limit)
         result = []
+        
         for conv in conversations:
-            history = []
-            if conv.conversation_log:
-                try:
-                    history = json.loads(conv.conversation_log)
-                except json.JSONDecodeError:
-                    history = []
-            last_message = history[-1] if history else None
+            # 각 대화의 마지막 메시지 조회
+            query = async_select(Message).where(
+                Message.conversation_id == conv.id
+            ).order_by(desc(Message.created_at)).limit(1)
+            
+            last_message_result = await db.execute(query)
+            last_message = last_message_result.scalars().first()
+            
             result.append({
                 "conversation_id": conv.id,
                 "image_title": conv.image_title,
                 "created_at": conv.created_at.isoformat(),
                 "updated_at": conv.updated_at.isoformat(),
-                "last_message": last_message["content"] if last_message else None,
-                "last_message_role": last_message["role"] if last_message else None
+                "last_message": last_message.content if last_message else None,
+                "last_message_role": last_message.role if last_message else None
             })
+        
         return {"conversations": result}
+        
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"서버 오류: {str(e)}")
 
-# ── 특정 대화 히스토리 조회 엔드포인트 ──
+# 특정 대화 히스토리 조회 엔드포인트
 @router.get("/conversation/{conversation_id}")
 async def get_conversation_detail(
     conversation_id: str,
@@ -262,87 +272,107 @@ async def get_conversation_detail(
     db: AsyncSession = Depends(get_db)
 ):
     try:
+        # 대화 정보 조회
         result = await db.execute(
             async_select(Conversation).where(Conversation.id == conversation_id)
         )
         conversation = result.scalars().first()
+        
         if not conversation:
             raise HTTPException(status_code=404, detail="대화를 찾을 수 없습니다")
+            
         if conversation.user_id != userid:
             raise HTTPException(status_code=403, detail="접근 권한이 없습니다")
-        history = []
-        if conversation.conversation_log:
-            try:
-                history = json.loads(conversation.conversation_log)
-            except json.JSONDecodeError:
-                history = []
+        
+        # 메시지 히스토리 조회
+        messages = await get_conversation_history(db, conversation_id)
+        
         return {
             "conversation_id": conversation.id,
             "image_title": conversation.image_title,
             "vlm_description": conversation.vlm_description,
             "created_at": conversation.created_at.isoformat(),
             "updated_at": conversation.updated_at.isoformat(),
-            "messages": history
+            "messages": messages
         }
+        
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"서버 오류: {str(e)}")
 
-# ── 웹소켓 연결 엔드포인트 ──
+# 웹소켓 연결 엔드포인트
 @router.websocket("/ws/chat/{userid}")
 async def websocket_endpoint(websocket: WebSocket, userid: str):
     await manager.connect(websocket, userid)
     try:
         while True:
             try:
+                # 클라이언트로부터 메시지 수신
                 data = await websocket.receive_text()
                 message_data = json.loads(data)
+                
+                # 메시지 타입에 따른 처리
                 if message_data.get("message_type") == "ping":
                     await manager.send_message(userid, {"message_type": "pong"})
                     continue
+                
+                # DB 세션 생성
                 async with async_session() as db:
+                    # 채팅 메시지 처리
                     request = message_data.get("request", "")
                     image_title = message_data.get("image_title", "unknown")
                     vlm_description = message_data.get("vlm_description")
                     conversation_id = message_data.get("conversation_id")
                     
+                    # 대화 얻기 또는 생성
                     conversation = await get_or_create_conversation(
                         db, userid, image_title, vlm_description, conversation_id
                     )
-                    conversation_history = await get_conversation_history(db, conversation.id)
-                    await append_to_conversation_log(db, conversation, "user", request)
-                    conversation_history.append({"role": "user", "content": request})
                     
+                    # 기존 대화 기록 불러오기
+                    conversation_history = await get_conversation_history(db, conversation.id)
+                    
+                    # 새로운 메시지 추가
+                    await save_message(db, conversation.id, "user", request)
                     user_requests = [msg["content"] for msg in conversation_history if msg["role"] == "user"]
                     user_requests.append(request)
                     
+                    # LLM으로 응답 생성
                     reaction, question = generate_vts_response(request, user_requests)
-                    response = f"{reaction}\n{question}"
-                    print(response)
+                    response = reaction + '\n' + question
                     
-                    await append_to_conversation_log(db, conversation, "assistant", response)
-                    conversation_history.append({"role": "assistant", "content": response})
+                    # 응답을 대화 기록에 저장
+                    await save_message(db, conversation.id, "assistant", response)
                     
+                    # 대화 최종 업데이트 시간 갱신
                     conversation.updated_at = datetime.utcnow()
                     await db.commit()
                     
+                    # 메모리 캐시 업데이트
                     session_id = f"{userid}/{image_title}"
                     conversation_sessions[session_id] = {
                         "conversation_id": conversation.id,
-                        "messages": conversation_history,
+                        "messages": conversation_history + [
+                            {"role": "user", "content": request},
+                            {"role": "assistant", "content": response}
+                        ],
                         "last_activity": time.time()
                     }
+                    
+                    # 응답 전송
                     await manager.send_message(userid, {
                         "message_type": "chat_response",
                         "conversation_id": conversation.id,
                         "session_id": session_id,
                         "response": response,
                     })
+                
             except json.JSONDecodeError:
                 await websocket.send_text(json.dumps({"error": "유효하지 않은 JSON 형식입니다."}))
             except Exception as e:
                 await websocket.send_text(json.dumps({"error": f"메시지 처리 중 오류 발생: {str(e)}"}))
+                
     except WebSocketDisconnect:
         manager.disconnect(userid)
     except Exception as e:
@@ -353,7 +383,9 @@ def generate_vts_response(user_input, conversation_history):
     """
     사용자의 입력과 대화 히스토리를 기반으로 적절한 반응과 질문을 생성하는 함수.
     """
-    context = "\n".join([f"{msg['role']}: {msg['content']}" for msg in conversation_history[-3:]])
+    # 🔹 대화 맥락 정리
+    context = "\n".join(conversation_history[-3:])  # 최근 3개만 유지 (메모리 최적화)
+
     prompt = f"""
     사용자가 미술 작품을 감상하고 있습니다.
     이전 대화:
@@ -370,6 +402,7 @@ def generate_vts_response(user_input, conversation_history):
     1. 반응: (사용자의 감상을 반영한 피드백)
     2. 질문: (VTS 기반의 적절한 추가 질문)
     """
+
     completion = client.chat.completions.create(
         model="qwen-2.5-coder-32b",
         messages=[{"role": "user", "content": prompt}],
@@ -377,30 +410,40 @@ def generate_vts_response(user_input, conversation_history):
         max_tokens=150,
         top_p=0.95
     )
+
     response = completion.choices[0].message.content.strip()
+    
+    # 🔹 응답을 "반응 + 질문"으로 분리
     try:
         response_parts = response.split("\n")
         reaction = response_parts[0].strip() if response_parts else "흥미로운 생각이에요."
         question = response_parts[1].strip() if len(response_parts) > 1 else "이 작품을 보고 어떤 점이 가장 인상적이었나요?"
     except:
         reaction, question = response, "이 작품을 보고 어떤 점이 가장 인상적이었나요?"
+
     return reaction[7:], question[7:]
 
+# 메모리 캐시 세션 정리 작업
 async def cleanup_sessions():
     while True:
         try:
             current_time = time.time()
             expired_sessions = []
+            
             for session_id, session_data in conversation_sessions.items():
+                # 30분(1800초) 이상 비활성 세션 정리
                 if current_time - session_data["last_activity"] > 1800:
                     expired_sessions.append(session_id)
+                    
             for session_id in expired_sessions:
                 del conversation_sessions[session_id]
-            await asyncio.sleep(300)
+                
+            await asyncio.sleep(300)  # 5분마다 실행
         except Exception as e:
             print(f"세션 정리 중 오류 발생: {str(e)}")
             await asyncio.sleep(300)
 
+# 앱 시작 시 백그라운드 태스크 시작하는 함수
 def init_app(app):
     @app.on_event("startup")
     async def startup_event():

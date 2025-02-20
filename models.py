@@ -15,90 +15,105 @@ class User(Base):
     name = Column(String(255), unique=True, nullable=False)
     password = Column(BINARY(60), nullable=False)
     difficulty_lv = Column(Enum('E', 'H'), nullable=True)
-    description_st = Column(String(255), nullable=True)
+    conversations_st = Column(String(255), nullable=True)
     clr_knowledge = Column(Boolean, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
-    # User와 UserPhoto 관계 (One-to-Many)
-    photos = relationship(
-        "UserPhoto",
+    # One-to-Many 관계: 한 사용자는 여러 Conversations(사진/설명)을 가짐.
+    conversationss = relationship(
+        "Conversations",
         back_populates="user",
         cascade="all, delete",
-        primaryjoin="User.id == UserPhoto.user_id"
-    )
-
-    # User와 GeneratedDescription 관계 (One-to-Many)
-    descriptions = relationship(
-        "GeneratedDescription",
-        back_populates="user",
-        cascade="all, delete",
-        primaryjoin="User.id == GeneratedDescription.user_id"
+        primaryjoin="User.id == Conversations.user_id"
     )
 
 
-# UserPhoto 테이블 (사진 테이블)
-class UserPhoto(Base):
-    __tablename__ = "userphoto"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(String(36), ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
+# # Conversations 테이블 (사진/설명, 부모: One)
+# class Conversations(Base):
+#     __tablename__ = "conversations"
+#     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))  # 길이 36을 지정
+#     user_id = Column(String(255),  ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
+#     photo_url = Column(String(2083), nullable=True)
+#     image_title = Column(String(255))
+#     vlm_conversations = Column(Text, nullable=True)
+#     created_at = Column(DateTime, default=datetime.utcnow)
+#     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
-    uploaded_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-
-    # User 관계 설정 (Many-to-One)
-    user = relationship(
-        "User",
-        back_populates="photos",
-        primaryjoin="User.id == UserPhoto.user_id"
-    )
-
-    # GeneratedDescription 관계 설정 (One-to-Many)
-    descriptions = relationship(
-        "GeneratedDescription",
-        back_populates="photo",
-        cascade="all, delete",
-        primaryjoin="UserPhoto.id == GeneratedDescription.photo_id"
-    )
+#     # Many-to-One 관계: 하나의 Conversations은 하나의 User에 속함.
+#     user = relationship(
+#         "User",
+#         back_populates="conversationss",
+#         primaryjoin="User.id == Conversations.user_id"
+#     )
+    
+#     # One-to-Many 관계: 하나의 Conversations은 여러 Message(채팅 기록)을 가짐.
+#     messages = relationship(
+#         "Message",
+#         back_populates="conversations",
+#         cascade="all, delete-orphan"
+#     )
 
 
-# Artwork 테이블
-class Artwork(Base):
-    __tablename__ = "artwork"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    title = Column(String(255), nullable=False)
-    artist = Column(String(255), nullable=False)
-    year = Column(Integer, nullable=True)
-    description = Column(Text, nullable=True)
-    img_url = Column(String(2083), nullable=True)
+# # Message 테이블 (자식: Many)
+# class Message(Base):
+#     __tablename__ = "messages"
+    
+#     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+#     # 외래키 이름를 conversations_id로 변경하여 Conversations.id를 참조
+#     conversation_id = Column(String(36), ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False)
+#     role = Column(String(255))  # "user" 또는 "assistant"
+#     content = Column(Text)
+#     created_at = Column(DateTime, default=datetime.utcnow)
+    
+#     # Many-to-One 관계: 하나의 Message는 하나의 Conversations에 속함.
+#     conversations = relationship(
+#         "Conversations",
+#         back_populates="messages",
+#         primaryjoin="Conversations.id == Message.conversation_id"
+#     )
 
-
-# GeneratedDescription 테이블 (AI 생성 설명)
-class GeneratedDescription(Base):
-    __tablename__ = "generateddescription"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    photo_id = Column(Integer, ForeignKey("userphoto.id", ondelete="CASCADE"), nullable=False)
-    user_id = Column(String(36), ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
-    artwork_id = Column(Integer, ForeignKey("artwork.id", ondelete="SET NULL"), nullable=True)
-    generated_text = Column(Text, nullable=True)
+# Conversations 테이블 (사진/설명, 부모: One)
+class Conversation(Base): # 변경1
+    __tablename__ = "conversations"
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))  # 길이 36을 지정
+    user_id = Column(String(255),  ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
     photo_url = Column(String(2083), nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
-
-    # User 관계 설정 (Many-to-One)
+    image_title = Column(String(255))
+    vlm_conversations = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Many-to-One 관계: 하나의 Conversations은 하나의 User에 속함.
     user = relationship(
         "User",
-        back_populates="descriptions",
-        primaryjoin="User.id == GeneratedDescription.user_id"
+        back_populates="conversationss",
+        primaryjoin="User.id == Conversations.user_id"
+    )
+    
+    # One-to-Many 관계: 하나의 Conversations은 여러 Message(채팅 기록)을 가짐.
+    messages = relationship(
+        "Message",
+        back_populates="conversation",
+        cascade="all, delete-orphan"
     )
 
-    # UserPhoto 관계 설정 (Many-to-One)
-    photo = relationship(
-        "UserPhoto",
-        primaryjoin="UserPhoto.id == GeneratedDescription.photo_id"
-    )
 
-    # Artwork 관계 설정 (Many-to-One)
-    artwork = relationship("Artwork")
+
+# Message 테이블 (자식: Many)
+class Message(Base):
+    __tablename__ = "messages"
+    
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    conversation_id = Column(String(36), ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False)
+    role = Column(String(255))  # "user" 또는 "assistant"
+    content = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Many-to-One 관계: 하나의 Message는 하나의 Conversations에 속함.
+    conversation = relationship(
+        "Conversation",
+        back_populates="messages",
+        primaryjoin="Conversations.id == Message.conversation_id"
+    )

@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlalchemy.future import select as async_select
 import os
 from groq import Groq
+# from models import Base, Conversation, Message
 
 router = APIRouter()
 # router = APIRouter(prefix="/chat", tags=["Chatbot"])
@@ -88,7 +89,7 @@ class ChatMessage(BaseModel):
     conversation_id: Optional[str] = None  # 기존 대화를 이어가기 위한 ID
 
 # 대화 세션 관리 (메모리 캐시)
-conversation_sessions = {}
+# conversation_sessions = {}
 
 
 # DB 의존성
@@ -207,16 +208,16 @@ async def start_vts_conversation(
         await db.commit()
         
         # 메모리 캐시 업데이트
-        session_id = f"{userid}/{image_title}"
-        if session_id not in conversation_sessions:
-            conversation_sessions[session_id] = {
-                "conversation_id": conversation.id,
-                "messages": conversation_history + [
-                    {"role": "user", "content": request},
-                    {"role": "assistant", "content": response}
-                ],
-                "last_activity": time.time()
-            }
+        # session_id = f"{userid}/{image_title}"
+        # if session_id not in conversation_sessions:
+        #     conversation_sessions[session_id] = {
+        #         "conversation_id": conversation.id,
+        #         "messages": conversation_history + [
+        #             {"role": "user", "content": request},
+        #             {"role": "assistant", "content": response}
+        #         ],
+        #         "last_activity": time.time()
+        #     }
         
         return {
             "conversation_id": conversation.id,
@@ -350,21 +351,21 @@ async def websocket_endpoint(websocket: WebSocket, userid: str):
                     await db.commit()
                     
                     # 메모리 캐시 업데이트
-                    session_id = f"{userid}/{image_title}"
-                    conversation_sessions[session_id] = {
-                        "conversation_id": conversation.id,
-                        "messages": conversation_history + [
-                            {"role": "user", "content": request},
-                            {"role": "assistant", "content": response}
-                        ],
-                        "last_activity": time.time()
-                    }
+                    # session_id = f"{userid}/{image_title}"
+                    # conversation_sessions[session_id] = {
+                    #     "conversation_id": conversation.id,
+                    #     "messages": conversation_history + [
+                    #         {"role": "user", "content": request},
+                    #         {"role": "assistant", "content": response}
+                    #     ],
+                    #     "last_activity": time.time()
+                    # }
                     
                     # 응답 전송
                     await manager.send_message(userid, {
                         "message_type": "chat_response",
                         "conversation_id": conversation.id,
-                        "session_id": session_id,
+                        # "session_id": session_id,
                         "response": response,
                     })
                 
@@ -424,28 +425,28 @@ def generate_vts_response(user_input, conversation_history):
     return reaction[7:], question[7:]
 
 # 메모리 캐시 세션 정리 작업
-async def cleanup_sessions():
-    while True:
-        try:
-            current_time = time.time()
-            expired_sessions = []
+# async def cleanup_sessions():
+#     while True:
+#         try:
+#             current_time = time.time()
+#             expired_sessions = []
             
-            for session_id, session_data in conversation_sessions.items():
-                # 30분(1800초) 이상 비활성 세션 정리
-                if current_time - session_data["last_activity"] > 1800:
-                    expired_sessions.append(session_id)
+#             for session_id, session_data in conversation_sessions.items():
+#                 # 30분(1800초) 이상 비활성 세션 정리
+#                 if current_time - session_data["last_activity"] > 1800:
+#                     expired_sessions.append(session_id)
                     
-            for session_id in expired_sessions:
-                del conversation_sessions[session_id]
+#             for session_id in expired_sessions:
+#                 del conversation_sessions[session_id]
                 
-            await asyncio.sleep(300)  # 5분마다 실행
-        except Exception as e:
-            print(f"세션 정리 중 오류 발생: {str(e)}")
-            await asyncio.sleep(300)
+#             await asyncio.sleep(300)  # 5분마다 실행
+#         except Exception as e:
+#             print(f"세션 정리 중 오류 발생: {str(e)}")
+#             await asyncio.sleep(300)
 
 # 앱 시작 시 백그라운드 태스크 시작하는 함수
 def init_app(app):
     @app.on_event("startup")
     async def startup_event():
         await init_database()
-        asyncio.create_task(cleanup_sessions())
+        # asyncio.create_task(cleanup_sessions())

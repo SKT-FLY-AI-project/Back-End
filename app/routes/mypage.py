@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import get_db
 from models import User
-from routers.auth import get_current_user  # 로그인된 사용자 정보 가져오기
+from app.routes.auth import get_current_user  # 로그인된 사용자 정보 가져오기
 from pydantic import BaseModel
 
 router = APIRouter(

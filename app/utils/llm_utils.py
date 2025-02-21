@@ -7,12 +7,9 @@ from PIL import Image
 from langchain.prompts import PromptTemplate
 
 from app.utils.opencv_utils import get_color_name
-from app.models.llm_model import LLMModel  # 미리 로드된 모델 불러오기
+from app.ai.llm_model import LLMModel  # 미리 로드된 모델 불러오기
 from app.services.text_processing import clean_and_restore_spacing
-
-# Hugging Face 모델 캐시 경로 설정
-os.environ['HF_HOME'] = "D:/huggingface_models"
-client = Groq(api_key="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")
+from app.config import client
 
 def generate_vlm_description_qwen(image_path):
     # 모델 인스턴스 생성 및 로드
@@ -77,3 +74,47 @@ def generate_rich_description(title, vlm_desc, dominant_colors, edges=[]):
     )
 
     return completion.choices[0].message.content.strip()
+
+def generate_vts_response(user_input, conversation_history):
+    """
+    사용자의 입력과 대화 히스토리를 기반으로 적절한 반응과 질문을 생성하는 함수.
+    """
+    # 🔹 대화 맥락 정리
+    context = "\n".join(conversation_history[-3:])  # 최근 3개만 유지 (메모리 최적화)
+
+    prompt = f"""
+    사용자가 미술 작품을 감상하고 있습니다.
+    이전 대화:
+    {context}
+
+    사용자의 입력:
+    "{user_input}"
+
+    AI의 역할:
+    1. 사용자의 감상에 대해 적절한 반응을 제공합니다.
+    2. 새로운 질문을 생성하여 자연스럽게 대화를 이어갑니다.
+
+    AI의 응답 형식:
+    1. 반응: (사용자의 감상을 반영한 피드백)
+    2. 질문: (VTS 기반의 적절한 추가 질문)
+    """
+
+    completion = client.chat.completions.create(
+        model="qwen-2.5-coder-32b",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.5,
+        max_tokens=150,
+        top_p=0.95
+    )
+
+    response = completion.choices[0].message.content.strip()
+    
+    # 🔹 응답을 "반응 + 질문"으로 분리
+    try:
+        response_parts = response.split("\n")
+        reaction = response_parts[0].strip() if response_parts else "흥미로운 생각이에요."
+        question = response_parts[1].strip() if len(response_parts) > 1 else "이 작품을 보고 어떤 점이 가장 인상적이었나요?"
+    except:
+        reaction, question = response, "이 작품을 보고 어떤 점이 가장 인상적이었나요?"
+
+    return reaction[7:], question[7:]

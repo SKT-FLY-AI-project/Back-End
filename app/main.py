@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from app.api.routes import auth, photo, description, chat
+from app.api.routes import photo, description, chat
 from app.api.routes.chat import init_app
 
 app = FastAPI()

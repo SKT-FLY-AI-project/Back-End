@@ -12,8 +12,11 @@ from sqlalchemy.orm import sessionmaker, relationship, Session
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlalchemy.future import select as async_select
+from sqlalchemy import select, func, desc
+from datetime import datetime, timedelta
 import os
 from groq import Groq
+import re
 # from models import Base, Conversation, Message
 
 router = APIRouter()
@@ -36,6 +39,7 @@ class Conversation(Base):
     __tablename__ = "conversations"
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))  # 길이 36을 지정
     user_id = Column(String(255), index=True)
+    photo_url = Column(String(2083), nullable=True)
     image_title = Column(String(255))
     vlm_description = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -50,10 +54,6 @@ class Message(Base):
     content = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
     conversation = relationship("Conversation", back_populates="messages")
-
-
-# FastAPI 라우터
-router = APIRouter()
 
 # 클라이언트 연결 관리
 class ConnectionManager:
@@ -83,14 +83,11 @@ manager = ConnectionManager()
 # 모델 정의
 class ChatMessage(BaseModel):
     request: str
+    photo_url: str
     image_title: str
     vlm_description: Optional[str] = None
     dominant_colors: Optional[List[List[int]]] = None
     conversation_id: Optional[str] = None  # 기존 대화를 이어가기 위한 ID
-
-# 대화 세션 관리 (메모리 캐시)
-# conversation_sessions = {}
-
 
 # DB 의존성
 async def get_db():
@@ -103,38 +100,50 @@ async def init_database():
         await conn.run_sync(Base.metadata.create_all)
 
 # 대화 생성 또는 조회
-async def get_or_create_conversation(db: AsyncSession, user_id: str, image_title: str, 
-                                    vlm_description: Optional[str] = None, 
-                                    conversation_id: Optional[str] = None):
+async def get_or_create_conversation(
+    db: AsyncSession, user_id: str, photo_url: str, image_title: str, 
+    vlm_description: Optional[str] = None, 
+    conversation_id: Optional[str] = None
+):
+    print(1)
     if conversation_id:
+        print(2)
         # 기존 대화 조회
         result = await db.execute(
             async_select(Conversation).where(Conversation.id == conversation_id)
         )
+        print(3)
         conversation = result.scalars().first()
         if conversation and conversation.user_id == user_id:
             return conversation
     
+    print(4)
     # 새 대화 생성 또는 이미지 제목으로 최근 대화 조회
     if not conversation_id:
+        print(5)
         result = await db.execute(
             async_select(Conversation)
             .where(Conversation.user_id == user_id, Conversation.image_title == image_title)
             .order_by(desc(Conversation.updated_at))
             .limit(1)
         )
+        print(6)
         existing_conversation = result.scalars().first()
         if existing_conversation:
             return existing_conversation
-    
+    print(7)
     # 새 대화 생성
     new_conversation = Conversation(
         user_id=user_id,
+        photo_url=photo_url,
         image_title=image_title,
         vlm_description=vlm_description
     )
+    print(8)
     db.add(new_conversation)
+    print(9)
     await db.commit()
+    print(10)
     await db.refresh(new_conversation)
     return new_conversation
 
@@ -160,15 +169,90 @@ async def get_conversation_history(db: AsyncSession, conversation_id: str):
     return [{"role": msg.role, "content": msg.content} for msg in messages]
 
 # 사용자의 모든 대화 조회
-async def get_user_conversations(db: AsyncSession, user_id: str, limit: int = 10):
-    result = await db.execute(
-        async_select(Conversation)
-        .where(Conversation.user_id == user_id)
-        .order_by(desc(Conversation.updated_at))
-        .limit(limit)
-    )
+async def get_user_conversations(
+    user_id: str,
+    date: str = None,
+    limit: int = 10,
+    db: AsyncSession = Depends(get_db)
+):
+    # 기본 쿼리: user_id 조건 추가
+    query = select(Conversation).where(Conversation.user_id == user_id)
+    
+    # date 파라미터가 전달된 경우, 해당 날짜에 생성된 데이터만 필터링
+    if date:
+        try:
+            # "YYYY-MM-DD" 형식의 문자열을 date 객체로 변환
+            target_date = datetime.strptime(date, "YYYY-MM-DD").date()
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD.")
+        
+        # created_at 컬럼의 날짜 부분만 추출하여 비교
+        query = query.where(func.date(Conversation.created_at) == target_date)
+    
+    # 최신 업데이트 순으로 정렬 및 limit 적용
+    query = query.order_by(desc(Conversation.updated_at)).limit(limit)
+    
+    result = await db.execute(query)
     conversations = result.scalars().all()
     return conversations
+# async def get_user_conversations(db: AsyncSession, user_id: str, date: str = None, limit: int = 10):
+#     # 기본 쿼리: user_id 조건만 추가
+#     query = async_select(Conversation).where(Conversation.user_id == user_id)
+    
+#     # date 값이 있으면, created_at의 날짜와 비교
+#     # if date:
+#     #     date_str = str(date)
+#     #     # "YYYY-MM-DD" 형식인지 확인 (예: "2025-02-21")
+#     #     if re.match(r'^\d{4}-\d{2}-\d{2}$', date_str):
+#     #         try:
+#     #             date_obj = datetime.strptime(date_str, "%Y-%m-%d")
+#     #             start_date = date_obj
+#     #             end_date = date_obj + timedelta(days=1)
+#     #             query = query.where(
+#     #                 Conversation.created_at >= start_date,
+#     #                 Conversation.created_at < end_date
+#     #             )
+#     #         except ValueError:
+#     #             # 형식은 맞지만 변환 오류가 발생하면 SUBSTR 방식 사용
+#     #             query = query.where(func.substr(Conversation.created_at, 1, 10) == date_str)
+#     #     else:
+#     #         # date 값이 예상 형식이 아니라면 SUBSTR 방식으로 처리
+#     #         query = query.where(func.substr(Conversation.created_at, 1, 10) == date_str)
+    
+#         # query = query.where(func.substr(Conversation.created_at, 1, 10) == date)
+#     #     date_obj = datetime.strptime(date, "%Y-%m-%d").date()
+#     #     query = query.where(func.date(Conversation.created_at) == date_obj)
+    
+#     query = query.order_by(desc(Conversation.updated_at)).limit(limit)
+    
+#     result = await db.execute(query)
+#     conversations = result.scalars().all()
+#     return conversations
+
+@router.post("/save/{userid}")
+async def save(
+    userid: str,
+    photo_url: str = Body(...),
+    image_title: str = Body(...),
+    vlm_description: str = Body(...),
+    db: AsyncSession = Depends(get_db)
+):
+    try:
+        # 기존 감상(대화) 조회 없이 무조건 새 레코드 생성
+        new_conversation = Conversation(
+            user_id=userid,
+            photo_url=photo_url,
+            image_title=image_title,
+            vlm_description=vlm_description
+        )
+        db.add(new_conversation)
+        await db.flush()
+        print("제발")
+        await db.commit()
+        await db.refresh(new_conversation)
+        return {"conversation_id": new_conversation.id, "message": "감상이 저장되었습니다."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"서버 오류: {str(e)}")
 
 # HTTP 엔드포인트: 대화 시작/계속
 @router.post("/bot/{userid}")
@@ -179,13 +263,14 @@ async def start_vts_conversation(
 ):
     try:
         request = chat_data.request
+        photo_url = chat_data.photo_url
         image_title = chat_data.image_title
         vlm_description = chat_data.vlm_description
         conversation_id = chat_data.conversation_id
         
         # 대화 얻기 또는 생성
         conversation = await get_or_create_conversation(
-            db, userid, image_title, vlm_description, conversation_id
+            db, userid, photo_url, image_title, vlm_description, conversation_id
         )
         
         # 기존 대화 기록 불러오기
@@ -207,18 +292,6 @@ async def start_vts_conversation(
         conversation.updated_at = datetime.utcnow()
         await db.commit()
         
-        # 메모리 캐시 업데이트
-        # session_id = f"{userid}/{image_title}"
-        # if session_id not in conversation_sessions:
-        #     conversation_sessions[session_id] = {
-        #         "conversation_id": conversation.id,
-        #         "messages": conversation_history + [
-        #             {"role": "user", "content": request},
-        #             {"role": "assistant", "content": response}
-        #         ],
-        #         "last_activity": time.time()
-        #     }
-        
         return {
             "conversation_id": conversation.id,
             "response": response,
@@ -235,6 +308,7 @@ async def start_vts_conversation(
 @router.get("/conversations/{userid}")
 async def get_user_conversation_list(
     userid: str,
+    date: str = None,
     limit: int = 10,
     db: AsyncSession = Depends(get_db)
 ):
@@ -246,13 +320,14 @@ async def get_user_conversation_list(
             # 각 대화의 마지막 메시지 조회
             query = async_select(Message).where(
                 Message.conversation_id == conv.id
-            ).order_by(desc(Message.created_at)).limit(1)
+            ).order_by(desc(Message.created_at)).limit(limit)
             
             last_message_result = await db.execute(query)
             last_message = last_message_result.scalars().first()
             
             result.append({
                 "conversation_id": conv.id,
+                "photo_url": conv.photo_url,
                 "image_title": conv.image_title,
                 "created_at": conv.created_at.isoformat(),
                 "updated_at": conv.updated_at.isoformat(),
@@ -260,6 +335,7 @@ async def get_user_conversation_list(
                 "last_message_role": last_message.role if last_message else None
             })
         
+        print(result)
         return {"conversations": result}
         
     except Exception as e:
@@ -290,6 +366,7 @@ async def get_conversation_detail(
         
         return {
             "conversation_id": conversation.id,
+            "photo_url": conversation.photo_url,
             "image_title": conversation.image_title,
             "vlm_description": conversation.vlm_description,
             "created_at": conversation.created_at.isoformat(),
@@ -322,13 +399,14 @@ async def websocket_endpoint(websocket: WebSocket, userid: str):
                 async with async_session() as db:
                     # 채팅 메시지 처리
                     request = message_data.get("request", "")
+                    photo_url = message_data.get("photo_url")
                     image_title = message_data.get("image_title", "unknown")
                     vlm_description = message_data.get("vlm_description")
                     conversation_id = message_data.get("conversation_id")
                     
                     # 대화 얻기 또는 생성
                     conversation = await get_or_create_conversation(
-                        db, userid, image_title, vlm_description, conversation_id
+                        db, userid, photo_url, image_title, vlm_description, conversation_id
                     )
                     
                     # 기존 대화 기록 불러오기
@@ -350,17 +428,6 @@ async def websocket_endpoint(websocket: WebSocket, userid: str):
                     conversation.updated_at = datetime.utcnow()
                     await db.commit()
                     
-                    # 메모리 캐시 업데이트
-                    # session_id = f"{userid}/{image_title}"
-                    # conversation_sessions[session_id] = {
-                    #     "conversation_id": conversation.id,
-                    #     "messages": conversation_history + [
-                    #         {"role": "user", "content": request},
-                    #         {"role": "assistant", "content": response}
-                    #     ],
-                    #     "last_activity": time.time()
-                    # }
-                    
                     # 응답 전송
                     await manager.send_message(userid, {
                         "message_type": "chat_response",
@@ -368,6 +435,7 @@ async def websocket_endpoint(websocket: WebSocket, userid: str):
                         # "session_id": session_id,
                         "response": response,
                     })
+                    print("message sent")
                 
             except json.JSONDecodeError:
                 await websocket.send_text(json.dumps({"error": "유효하지 않은 JSON 형식입니다."}))
@@ -423,26 +491,6 @@ def generate_vts_response(user_input, conversation_history):
         reaction, question = response, "이 작품을 보고 어떤 점이 가장 인상적이었나요?"
 
     return reaction[7:], question[7:]
-
-# 메모리 캐시 세션 정리 작업
-# async def cleanup_sessions():
-#     while True:
-#         try:
-#             current_time = time.time()
-#             expired_sessions = []
-            
-#             for session_id, session_data in conversation_sessions.items():
-#                 # 30분(1800초) 이상 비활성 세션 정리
-#                 if current_time - session_data["last_activity"] > 1800:
-#                     expired_sessions.append(session_id)
-                    
-#             for session_id in expired_sessions:
-#                 del conversation_sessions[session_id]
-                
-#             await asyncio.sleep(300)  # 5분마다 실행
-#         except Exception as e:
-#             print(f"세션 정리 중 오류 발생: {str(e)}")
-#             await asyncio.sleep(300)
 
 # 앱 시작 시 백그라운드 태스크 시작하는 함수
 def init_app(app):

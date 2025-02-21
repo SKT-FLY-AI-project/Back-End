@@ -105,33 +105,26 @@ async def get_or_create_conversation(
     vlm_description: Optional[str] = None, 
     conversation_id: Optional[str] = None
 ):
-    print(1)
     if conversation_id:
-        print(2)
         # 기존 대화 조회
         result = await db.execute(
             async_select(Conversation).where(Conversation.id == conversation_id)
         )
-        print(3)
         conversation = result.scalars().first()
         if conversation and conversation.user_id == user_id:
             return conversation
     
-    print(4)
     # 새 대화 생성 또는 이미지 제목으로 최근 대화 조회
     if not conversation_id:
-        print(5)
         result = await db.execute(
             async_select(Conversation)
             .where(Conversation.user_id == user_id, Conversation.image_title == image_title)
             .order_by(desc(Conversation.updated_at))
             .limit(1)
         )
-        print(6)
         existing_conversation = result.scalars().first()
         if existing_conversation:
             return existing_conversation
-    print(7)
     # 새 대화 생성
     new_conversation = Conversation(
         user_id=user_id,
@@ -139,11 +132,8 @@ async def get_or_create_conversation(
         image_title=image_title,
         vlm_description=vlm_description
     )
-    print(8)
     db.add(new_conversation)
-    print(9)
     await db.commit()
-    print(10)
     await db.refresh(new_conversation)
     return new_conversation
 
@@ -169,65 +159,42 @@ async def get_conversation_history(db: AsyncSession, conversation_id: str):
     return [{"role": msg.role, "content": msg.content} for msg in messages]
 
 # 사용자의 모든 대화 조회
-async def get_user_conversations(
-    user_id: str,
-    date: str = None,
-    limit: int = 10,
-    db: AsyncSession = Depends(get_db)
-):
-    # 기본 쿼리: user_id 조건 추가
-    query = select(Conversation).where(Conversation.user_id == user_id)
+# async def get_user_conversations(
+#     user_id: str,
+#     date: str = None,
+#     limit: int = 10,
+#     db: AsyncSession = Depends(get_db)
+# ):
+#     # 기본 쿼리: user_id 조건 추가
+#     query = select(Conversation).where(Conversation.user_id == user_id)
     
-    # date 파라미터가 전달된 경우, 해당 날짜에 생성된 데이터만 필터링
-    if date:
-        try:
-            # "YYYY-MM-DD" 형식의 문자열을 date 객체로 변환
-            target_date = datetime.strptime(date, "YYYY-MM-DD").date()
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD.")
+#     # date 파라미터가 전달된 경우, 해당 날짜에 생성된 데이터만 필터링
+#     if date:
+#         try:
+#             # "YYYY-MM-DD" 형식의 문자열을 date 객체로 변환
+#             target_date = datetime.strptime(date, "YYYY-MM-DD").date()
+#         except ValueError:
+#             raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD.")
         
-        # created_at 컬럼의 날짜 부분만 추출하여 비교
-        query = query.where(func.date(Conversation.created_at) == target_date)
+#         # created_at 컬럼의 날짜 부분만 추출하여 비교
+#         query = query.where(func.date(Conversation.created_at) == target_date)
     
-    # 최신 업데이트 순으로 정렬 및 limit 적용
-    query = query.order_by(desc(Conversation.updated_at)).limit(limit)
-    
-    result = await db.execute(query)
-    conversations = result.scalars().all()
-    return conversations
-# async def get_user_conversations(db: AsyncSession, user_id: str, date: str = None, limit: int = 10):
-#     # 기본 쿼리: user_id 조건만 추가
-#     query = async_select(Conversation).where(Conversation.user_id == user_id)
-    
-#     # date 값이 있으면, created_at의 날짜와 비교
-#     # if date:
-#     #     date_str = str(date)
-#     #     # "YYYY-MM-DD" 형식인지 확인 (예: "2025-02-21")
-#     #     if re.match(r'^\d{4}-\d{2}-\d{2}$', date_str):
-#     #         try:
-#     #             date_obj = datetime.strptime(date_str, "%Y-%m-%d")
-#     #             start_date = date_obj
-#     #             end_date = date_obj + timedelta(days=1)
-#     #             query = query.where(
-#     #                 Conversation.created_at >= start_date,
-#     #                 Conversation.created_at < end_date
-#     #             )
-#     #         except ValueError:
-#     #             # 형식은 맞지만 변환 오류가 발생하면 SUBSTR 방식 사용
-#     #             query = query.where(func.substr(Conversation.created_at, 1, 10) == date_str)
-#     #     else:
-#     #         # date 값이 예상 형식이 아니라면 SUBSTR 방식으로 처리
-#     #         query = query.where(func.substr(Conversation.created_at, 1, 10) == date_str)
-    
-#         # query = query.where(func.substr(Conversation.created_at, 1, 10) == date)
-#     #     date_obj = datetime.strptime(date, "%Y-%m-%d").date()
-#     #     query = query.where(func.date(Conversation.created_at) == date_obj)
-    
+#     # 최신 업데이트 순으로 정렬 및 limit 적용
 #     query = query.order_by(desc(Conversation.updated_at)).limit(limit)
     
 #     result = await db.execute(query)
 #     conversations = result.scalars().all()
 #     return conversations
+
+async def get_user_conversations(db: AsyncSession, user_id: str, date: str = None, limit: int = 10):
+    # 기본 쿼리: user_id 조건만 추가
+    query = async_select(Conversation).where(Conversation.user_id == user_id)
+    
+    query = query.order_by(desc(Conversation.updated_at)).limit(limit)
+    
+    result = await db.execute(query)
+    conversations = result.scalars().all()
+    return conversations
 
 @router.post("/save/{userid}")
 async def save(

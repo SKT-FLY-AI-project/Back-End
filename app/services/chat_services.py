@@ -12,8 +12,8 @@ client = Groq(api_key="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"
 async def get_or_create_conversation(
     db: AsyncSession, 
     user_id: str, 
-    image_title: str, 
-    vlm_description: str = None, 
+    title: str, 
+    rich_description: str = None, 
     conversation_id: str = None
 ):
     if conversation_id:
@@ -27,7 +27,7 @@ async def get_or_create_conversation(
     if not conversation_id:
         result = await db.execute(
             async_select(Conversation)
-            .where(Conversation.user_id == user_id, Conversation.image_title == image_title)
+            .where(Conversation.user_id == user_id, Conversation.title == title)
             .order_by(desc(Conversation.updated_at))
             .limit(1)
         )
@@ -37,8 +37,8 @@ async def get_or_create_conversation(
 
     new_conversation = Conversation(
         user_id=user_id,
-        image_title=image_title,
-        vlm_description=vlm_description
+        title=title,
+        rich_description=rich_description
     )
     db.add(new_conversation)
     await db.commit()

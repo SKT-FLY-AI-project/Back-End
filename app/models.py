@@ -32,9 +32,10 @@ class Conversation(Base):
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String(36), ForeignKey("user.id"), index=True)
-    photo_url = Column(String(2083), nullable=True)
-    image_title = Column(String(255))
-    vlm_description = Column(Text, nullable=True)
+    image_url = Column(String(2083), nullable=True)
+    title = Column(String(255))
+    # name = Column(String(255))
+    rich_description = Column(Text, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), 
                         onupdate=lambda: datetime.now(timezone.utc))

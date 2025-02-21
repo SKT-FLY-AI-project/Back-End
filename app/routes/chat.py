@@ -20,18 +20,18 @@ router = APIRouter(
 @router.post("/{userid}/create")
 async def save(
     userid: str,
-    photo_url: str = Body(...),
-    image_title: str = Body(...),
-    vlm_description: str = Body(...),
+    image_url: str = Body(...),
+    title: str = Body(...),
+    rich_description: str = Body(...),
     db: AsyncSession = Depends(get_db)
 ):
     try:
         # 기존 감상(대화) 조회 없이 무조건 새 레코드 생성
         new_conversation = Conversation(
             user_id=userid,
-            photo_url=photo_url,
-            image_title=image_title,
-            vlm_description=vlm_description
+            image_url=image_url,
+            title=title,
+            rich_description=rich_description
         )
         db.add(new_conversation)
         await db.flush()
@@ -50,14 +50,14 @@ async def start_vts_conversation(
 ):
     try:
         request = chat_data.request
-        photo_url = chat_data.photo_url
-        image_title = chat_data.image_title
-        vlm_description = chat_data.vlm_description
+        image_url = chat_data.image_url
+        title = chat_data.title
+        rich_description = chat_data.rich_description
         conversation_id = chat_data.conversation_id
         
         # 대화 얻기 또는 생성
         conversation = await get_or_create_conversation(
-            db, userid, photo_url, image_title, vlm_description, conversation_id
+            db, userid, image_url, title, rich_description, conversation_id
         )
         
         # 기존 대화 기록 불러오기
@@ -96,7 +96,7 @@ async def start_vts_conversation(
 async def get_user_conversation_list(
     userid: str,
     date: str = None,
-    image_title: str = None,
+    title: str = None,
     limit: int = 10,
     db: AsyncSession = Depends(get_db)
 ):
@@ -112,12 +112,11 @@ async def get_user_conversation_list(
                 conv for conv in conversations 
                 if conv.created_at.date() == filter_date
             ]
-            
         
-        if image_title:
+        if title:
             conversations = [
                 conv for conv in conversations 
-                if conv.image_title == image_title
+                if conv.title == title
             ]
             
         result = []
@@ -133,8 +132,10 @@ async def get_user_conversation_list(
             
             result.append({
                 "conversation_id": conv.id,
-                "photo_url": conv.photo_url,
-                "image_title": conv.image_title,
+                "image_url": conv.image_url,
+                "title": conv.title,
+                # "name": conv.name,
+                "rich_description": conv.rich_description,
                 "created_at": conv.created_at.isoformat(),
                 "updated_at": conv.updated_at.isoformat(),
                 "last_message": last_message.content if last_message else None,
@@ -172,9 +173,9 @@ async def get_conversation_detail(
         
         return {
             "conversation_id": conversation.id,
-            "photo_url": conversation.photo_url,
-            "image_title": conversation.image_title,
-            "vlm_description": conversation.vlm_description,
+            "image_url": conversation.image_url,
+            "title": conversation.title,
+            "rich_description": conversation.rich_description,
             "created_at": conversation.created_at.isoformat(),
             "updated_at": conversation.updated_at.isoformat(),
             "messages": messages

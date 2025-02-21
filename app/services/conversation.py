@@ -7,8 +7,8 @@ from app.models import Conversation, Message
 
 # 대화 생성 또는 조회
 async def get_or_create_conversation(
-    db: AsyncSession, user_id: str, photo_url: str, image_title: str, 
-    vlm_description: Optional[str] = None, 
+    db: AsyncSession, user_id: str, image_url: str, title: str, 
+    rich_description: Optional[str] = None, 
     conversation_id: Optional[str] = None
 ):
     if conversation_id:
@@ -24,7 +24,7 @@ async def get_or_create_conversation(
     if not conversation_id:
         result = await db.execute(
             async_select(Conversation)
-            .where(Conversation.user_id == user_id, Conversation.image_title == image_title)
+            .where(Conversation.user_id == user_id, Conversation.title == title)
             .order_by(desc(Conversation.updated_at))
             .limit(1)
         )
@@ -34,9 +34,9 @@ async def get_or_create_conversation(
     # 새 대화 생성
     new_conversation = Conversation(
         user_id=user_id,
-        photo_url=photo_url,
-        image_title=image_title,
-        vlm_description=vlm_description
+        image_url=image_url,
+        title=title,
+        rich_description=rich_description
     )
     db.add(new_conversation)
     await db.commit()

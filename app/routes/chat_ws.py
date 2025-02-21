@@ -43,11 +43,11 @@ async def websocket_endpoint(websocket: WebSocket, userid: str):
                 
                 request = message_data.get("request", "")
                 print(111)
-                photo_url = message_data.get("photo_url")
+                image_url = message_data.get("image_url")
                 print(222)
-                image_title = message_data.get("image_title", "unknown")
+                title = message_data.get("title", "unknown")
                 print(333)
-                vlm_description = message_data.get("vlm_description")
+                rich_description = message_data.get("rich_description")
                 print(444)
                 conversation_id = message_data.get("conversation_id")
                 # DB 세션 생성
@@ -58,7 +58,7 @@ async def websocket_endpoint(websocket: WebSocket, userid: str):
                 print(5)
                 # 대화 얻기 또는 생성
                 conversation = await get_or_create_conversation(
-                    db, userid, photo_url, image_title, vlm_description, conversation_id
+                    db, userid, image_url, title, rich_description, conversation_id
                 )
                 
                 print(6)

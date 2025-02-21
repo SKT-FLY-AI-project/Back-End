@@ -1,9 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from app.routes import auth, photo, description, chat
-from app.routes.chat import init_app
-from database import init_database
+from app.routes import auth, mypage, description, chat, chat_ws
+from app.database import init_database
 
 app = FastAPI()
 
@@ -15,15 +14,16 @@ app = FastAPI()
 #     print("✅ FastAPI 시작 완료!")
 
 app.include_router(auth.router)
-app.include_router(photo.router)
 app.include_router(description.router)
 app.include_router(chat.router)
+app.include_router(chat_ws.router)
 app.mount("/static", StaticFiles(directory='./app/static'), name="static")
 
 # 앱 초기화
 def init_app(app):
     @app.on_event("startup")
     async def startup_event():
+        print("Server started")
         await init_database()
 
 # 애플리케이션 초기화

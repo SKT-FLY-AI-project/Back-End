@@ -12,11 +12,14 @@ import sys
 import os
 import cv2
 
-router = APIRouter(prefix="/desc", tags=["Describe"])
+router = APIRouter(
+    prefix="/api/describe", 
+    tags=["Description"]
+)
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-@router.post("/describe/{userid}")
+@router.post("/{userid}")
 async def describe_image(userid: str, file: UploadFile = File(...)):
     """
     이미지를 업로드하면 분석을 수행하고 결과를 반환하는 API 엔드포인트.

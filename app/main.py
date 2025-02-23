@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from app.routes import auth, mypage, description, chat, chat_ws
+from app.routers import auth, mypage, description, chat, conversation
 from app.database import init_database
 
 app = FastAPI()
@@ -14,9 +14,10 @@ app = FastAPI()
 #     print("✅ FastAPI 시작 완료!")
 
 app.include_router(auth.router)
+app.include_router(mypage.router)
 app.include_router(description.router)
 app.include_router(chat.router)
-app.include_router(chat_ws.router)
+app.include_router(conversation.router)
 app.mount("/static", StaticFiles(directory='./app/static'), name="static")
 
 # 앱 초기화

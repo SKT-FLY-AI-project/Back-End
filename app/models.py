@@ -12,7 +12,7 @@ class User(Base):
     name = Column(String(255), unique=True, nullable=False)
     password = Column(String(255), nullable=False)  # 필요시 BINARY 타입으로 변경 가능
     difficulty_lv = Column(Enum('E', 'H'), nullable=True)
-    conversations_st = Column(String(255), nullable=True)
+    description_st = Column(String(255), nullable=True)
     clr_knowledge = Column(Boolean, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), 
@@ -34,7 +34,7 @@ class Conversation(Base):
     user_id = Column(String(36), ForeignKey("user.id"), index=True)
     image_url = Column(String(2083), nullable=True)
     title = Column(String(255))
-    # name = Column(String(255))
+    artist = Column(String(255))
     rich_description = Column(Text, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), 

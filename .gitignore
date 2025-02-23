@@ -43,3 +43,4 @@ static/
 app/config.py
 app/api/router/tmp/
 app/tmp/
+*.h5

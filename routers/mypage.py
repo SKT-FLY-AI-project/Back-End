@@ -6,12 +6,12 @@ from routers.auth import get_current_user  # 로그인된 사용자 정보 가�
 from pydantic import BaseModel
 
 router = APIRouter(
-    prefix="/user",
+    prefix="/api/user",
     tags=["User"]  
 )
 
 # 마이페이지 조회 API
-@router.get("/", summary="Get My Page")
+@router.get("/get", summary="Get My Page")
 def get_my_page(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == current_user.id).first()
     if not user:
@@ -32,7 +32,7 @@ class UpdateMyPageRequest(BaseModel):
     description_st: str | None = None
     clr_knowledge: bool | None = None
 
-@router.patch("/", summary="Update My Page")
+@router.patch("/edit", summary="Update My Page")
 def update_my_page(
     data: UpdateMyPageRequest,
     current_user: User = Depends(get_current_user),

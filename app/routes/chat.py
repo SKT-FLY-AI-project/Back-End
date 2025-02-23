@@ -101,7 +101,7 @@ async def get_user_conversation_list(
     db: AsyncSession = Depends(get_db)
 ):
     try:
-        conversations = await get_user_conversations(db, userid, limit)
+        conversations = await get_user_conversations(db, userid, limit=limit)
         
         if date:
             try:
@@ -125,7 +125,7 @@ async def get_user_conversation_list(
             # 각 대화의 마지막 메시지 조회
             query = async_select(Message).where(
                 Message.conversation_id == conv.id
-            ).order_by(desc(Message.created_at)).limit(limit)
+            ).order_by(desc(Message.created_at)).limit(10)
             
             last_message_result = await db.execute(query)
             last_message = last_message_result.scalars().first()

@@ -66,6 +66,7 @@ async def get_conversation_history(db: AsyncSession, conversation_id: str):
 
 # 사용자의 모든 대화 조회
 async def get_user_conversations(db: AsyncSession, user_id: str, date: str = None, limit: int = 10):
+    print(limit)
     # 기본 쿼리: user_id 조건만 추가
     query = async_select(Conversation).where(Conversation.user_id == user_id)
     

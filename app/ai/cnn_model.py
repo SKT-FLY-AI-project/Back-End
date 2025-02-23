@@ -9,3 +9,9 @@ class ModelManager:
         if self.model is None:
             self.model = tf.keras.models.load_model(MODEL_PATH)
         return self.model
+    
+    
+from app.config import MODEL_PATH
+
+# 모델 로드
+model = tf.keras.models.load_model(MODEL_PATH)

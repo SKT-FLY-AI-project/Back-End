@@ -13,6 +13,7 @@ class LLMModel:
         """FastAPI 실행 시 한 번만 모델을 로드"""
         if self.model is None:
             print("🔹 LLM 모델 로드 중...")
+            torch.cuda.empty_cache()
             self.model = AutoModelForVision2Seq.from_pretrained(
                 self.model_name,
                 torch_dtype=torch.float16,
@@ -26,3 +27,5 @@ class LLMModel:
         if self.model is None or self.processor is None:
             self.load_model()
         return self.model, self.processor
+    
+llm_model = LLMModel()

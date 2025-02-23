@@ -7,14 +7,14 @@ from PIL import Image
 from langchain.prompts import PromptTemplate
 
 from app.utils.opencv_utils import get_color_name
-from app.ai.llm_model import LLMModel  # 미리 로드된 모델 불러오기
+from app.ai.llm_model import llm_model  # 미리 로드된 모델 불러오기
 from app.services.text_processing import clean_and_restore_spacing
 from app.config import client
 
 def generate_vlm_description_qwen(image_path):
     # 모델 인스턴스 생성 및 로드
-    llm_model = LLMModel()
-    llm_model.load_model()  # FastAPI 실행 시 모델을 한 번 로드
+    # llm_model = LLMModel()
+    # llm_model.load_model()  # FastAPI 실행 시 모델을 한 번 로드
     
     model, processor = llm_model.get_model()  # 로드된 모델 가져오기
     image = Image.open(image_path).convert("RGB").resize((512, 512))

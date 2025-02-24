@@ -1,15 +1,13 @@
 import os
 import json
+from app.config import ART_REF_PATH
 
 def load_art_database():
     """예술 DB를 불러오는 함수"""
-    current_dir = os.path.dirname(os.path.abspath(__file__))  
-    file_path = os.path.join(current_dir, "data", "labels_with_image_paths.json")
-    
-    if not os.path.exists(file_path):
-        raise FileNotFoundError(f"❌ 예술 DB를 찾을 수 없습니다: {file_path}")
+    if not os.path.exists(ART_REF_PATH):
+        raise FileNotFoundError(f"❌ 예술 DB를 찾을 수 없습니다: {ART_REF_PATH}")
 
-    with open(file_path, "r", encoding="utf-8") as f:
+    with open(ART_REF_PATH, "r", encoding="utf-8") as f:
         return json.load(f)
     
 # 작품 정보 검색 함수

@@ -120,7 +120,7 @@ async def generate_rich_description(title, artist, correct_period, webpage, vlm_
         model="qwen-2.5-coder-32b",
         messages=[{"role": "user", "content": formatted_prompt}],
         temperature=0.5,
-        max_tokens=512,
+        max_tokens=1024,
         top_p=0.95
     )
 

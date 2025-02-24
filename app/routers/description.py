@@ -25,7 +25,6 @@ async def describe_image(userid: str, file: UploadFile = File(...)):
     """
     이미지를 업로드하면 분석을 수행하고 결과를 반환하는 API 엔드포인트.
     """
-    # yield "START|이미지 업로드 중...\n"
     file_name = file.filename
     file_path = f"{UPLOAD_DIR}/{file.filename}"
 
@@ -62,10 +61,10 @@ async def describe_image(userid: str, file: UploadFile = File(...)):
         else: 
             artwork_info = {}
 
-        title = artwork_info.get("title")
-        artist = artwork_info.get("artist")
-        period = artwork_info.get("period")
-        webpage = artwork_info.get("webpage")
+        title = artwork_info.get("title") if artwork_info else None
+        artist = artwork_info.get("artist") if artwork_info else None
+        period = artwork_info.get("period") if artwork_info else None
+        webpage = artwork_info.get("webpage") if artwork_info else None
         
         yield json.dumps({"status": "풍부한 설명 생성 중...", "completed": False}) + "\n"
         rich_description = await generate_rich_description(title, artist, period, webpage, vlm_description[0], dominant_colors, edges)

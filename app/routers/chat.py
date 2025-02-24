@@ -14,12 +14,20 @@ router = APIRouter(
 
 # 웹소켓 연결 엔드포인트
 @router.websocket("/{userid}")
-async def websocket_endpoint(websocket: WebSocket, userid: str):
+async def websocket_endpoint(
+    websocket: WebSocket, 
+    userid: str,
+    image_url: str = None,
+    title: str = None,
+    artist: str = None,
+    rich_description: str = None,
+    conversation_id: str = None
+):
     print(1)
     await manager.connect(websocket, userid)
     try:
         db_gen = get_db()                   # 제너레이터 생성
-        db = await db_gen.__anext__()  
+        db = await db_gen.__anext__()
         while True:
             try:
                 print(2)
@@ -41,9 +49,9 @@ async def websocket_endpoint(websocket: WebSocket, userid: str):
                 print(111)
                 image_url = message_data.get("image_url")
                 print(222)
-                title = message_data.get("title", "unknown")
+                title = message_data.get("title", "제목 없음")
                 print(300)
-                artist = message_data.get("artist", "unknown")
+                artist = message_data.get("artist", "작자 미상")
                 print(333)
                 rich_description = message_data.get("rich_description")
                 print(444)
@@ -52,7 +60,7 @@ async def websocket_endpoint(websocket: WebSocket, userid: str):
                 print(5)
                 # 대화 얻기 또는 생성
                 conversation = await get_or_create_conversation(
-                    db, userid, image_url, title, rich_description, conversation_id
+                    db, userid, image_url, title, artist, rich_description, conversation_id
                 )
                 
                 print(6)
@@ -92,7 +100,6 @@ async def websocket_endpoint(websocket: WebSocket, userid: str):
                 await manager.send_message(userid, {
                     "message_type": "chat_response",
                     "conversation_id": conversation.id,
-                    # "session_id": session_id,
                     "response": response,
                 })
                 print("message sent")

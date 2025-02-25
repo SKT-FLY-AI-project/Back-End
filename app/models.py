@@ -10,7 +10,7 @@ class User(Base):
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     name = Column(String(255), unique=True, nullable=False)
-    password = Column(String(255), nullable=False)  # 필요시 BINARY 타입으로 변경 가능
+    password = Column(String(255), nullable=True)  # 필요시 BINARY 타입으로 변경 가능
     difficulty_lv = Column(Enum('E', 'H'), nullable=True)
     description_st = Column(String(255), nullable=True)
     clr_knowledge = Column(Boolean, nullable=True)

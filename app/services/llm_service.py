@@ -45,7 +45,7 @@ async def generate_vlm_description_qwen(image_path):
     inputs = processor(text=[text_input], images=image, return_tensors="pt", padding=True).to(model.device)
 
     with torch.no_grad():
-        outputs = model.generate(**inputs, max_new_tokens=256)
+        outputs = model.generate(**inputs, max_new_tokens=512)
 
     description = processor.batch_decode(outputs, skip_special_tokens=True, clean_up_tokenization_spaces=False)[0]
     description = clean_and_restore_spacing(processor.batch_decode(outputs, skip_special_tokens=True)[0])

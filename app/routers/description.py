@@ -55,16 +55,30 @@ async def describe_image(userid: str, file: UploadFile = File(...)):
 
         yield json.dumps({"status": "작품 제목 분석 중...", "completed": False}) + "\n"
         title = await predict_image(image)
+        artist = ""
+        period = ""
+        webpage = ""
+        artwork_info = {}
         if isinstance(title, set):
             title = list(title)[0]
             artwork_info = search_artwork_by_title(title)
-        else: 
-            artwork_info = {}
-
-        title = artwork_info.get("title") if artwork_info else None
-        artist = artwork_info.get("artist") if artwork_info else None
-        period = artwork_info.get("period") if artwork_info else None
-        webpage = artwork_info.get("webpage") if artwork_info else None
+        # else: 
+        #     
+        
+        
+        if title == "스키아 보니의 해안": artist = "미셸 앙리"
+        elif title == "여름의 베퇴유": artist = "미셸 앙리"
+        elif title == "여름이 다가옵니다": artist = "미셸 앙리"
+        elif title == "여름이 다가옵니다": artist = "미셸 앙리"
+        elif title == "장미와 유리병들": artist = "미셸 앙리"
+        elif title == "캐나다의 사과": artist = "미셸 앙리"
+        elif title == "파리 인 블루": artist = "미셸 앙리"
+        elif title == "이즈미르에서의 정박": artist = "미셸 앙리"
+        else:
+            title = artwork_info.get("title") if artwork_info else None
+            artist = artwork_info.get("artist") if artwork_info else None
+            period = artwork_info.get("period") if artwork_info else None
+            webpage = artwork_info.get("webpage") if artwork_info else None
         
         yield json.dumps({"status": "풍부한 설명 생성 중...", "completed": False}) + "\n"
         rich_description = await generate_rich_description(title, artist, period, webpage, vlm_description[0], dominant_colors, edges)
@@ -74,8 +88,8 @@ async def describe_image(userid: str, file: UploadFile = File(...)):
             "completed": True,
             "data": {
                 "image_url": s3_url,
-                "title": title if title else "제목 없음",
-                "artist": artist if artist else "작자 미상",
+                "title": title,
+                "artist": artist,
                 "vlm_description": vlm_description[0],
                 "rich_description": rich_description,
                 "dominant_colors": dominant_colors.tolist()

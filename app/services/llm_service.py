@@ -5,6 +5,7 @@ from PIL import Image
 import numpy as np
 import torch
 from langchain.prompts import PromptTemplate
+import asyncio
 
 from app.utils.image_processing import get_color_name
 from app.services.model_loader import llm_model  # 미리 로드된 모델 불러오기
@@ -44,15 +45,18 @@ async def generate_vlm_description_qwen(image_path):
     text_input = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
     inputs = processor(text=[text_input], images=image, return_tensors="pt", padding=True).to(model.device)
 
+    loop = asyncio.get_event_loop()
     with torch.no_grad():
-        outputs = model.generate(**inputs, max_new_tokens=512)
+        outputs = await loop.run_in_executor(
+            None, lambda: model.generate(**inputs, max_new_tokens=512)
+        )
 
     description = processor.batch_decode(outputs, skip_special_tokens=True, clean_up_tokenization_spaces=False)[0]
     description = clean_and_restore_spacing(processor.batch_decode(outputs, skip_special_tokens=True)[0])
     
     return description
 
-async def generate_rich_description(title, artist, correct_period, webpage, vlm_desc, dominant_colors, edges=[]):
+async def generate_rich_description(title, artist, correct_period="", webpage="", vlm_desc="", dominant_colors=[], edges=[]):
     """
     AI가 생성한 기본 설명을 기반으로 보다 풍부한 그림 설명을 생성하는 함수.
     """

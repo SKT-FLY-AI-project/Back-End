@@ -45,17 +45,23 @@ async def websocket_endpoint(
                 print(4)
                 print(message_data)
                 
-                request = message_data.get("request", "")
-                print(111)
-                image_url = message_data.get("image_url")
-                print(222)
-                title = message_data.get("title", "제목 없음")
-                print(300)
-                artist = message_data.get("artist", "작자 미상")
-                print(333)
-                rich_description = message_data.get("rich_description")
-                print(444)
-                conversation_id = message_data.get("conversation_id")
+                # request = message_data.get("request", "")
+                # print(111)
+                # image_url = message_data.get("image_url")
+                # print(222)
+                # title = message_data.get("title", "제목 없음")
+                # print(300)
+                # artist = message_data.get("artist", "작자 미상")
+                # print(333)
+                # rich_description = message_data.get("rich_description")
+                # print(444)
+                # conversation_id = message_data.get("conversation_id")
+                request_text = message_data.get("request", "")
+                image_url = message_data.get("image_url", image_url)
+                title = message_data.get("title", title or "제목 없음")
+                artist = message_data.get("artist", artist or "작자 미상")
+                rich_description = message_data.get("rich_description", rich_description)
+                conversation_id = message_data.get("conversation_id", conversation_id)
                 
                 print(5)
                 # 대화 얻기 또는 생성
@@ -69,9 +75,9 @@ async def websocket_endpoint(
                 
                 print(7)
                 # 새로운 메시지 추가
-                await save_message(db, conversation.id, "user", request)
+                await save_message(db, conversation.id, "user", request_text)
                 user_requests = [msg["content"] for msg in conversation_history if msg["role"] == "user"]
-                user_requests.append(request)
+                user_requests.append(request_text)
                 
                 print(8)
                 # LLM으로 응답 생성
@@ -81,7 +87,7 @@ async def websocket_endpoint(
                     response = answer_user_question(user_requests, conversation_history, title, artist, rich_description)
                 # elif input_type == "feeling":
                 else:
-                    reaction, next_question = generate_vts_response(request, user_requests)
+                    reaction, next_question = generate_vts_response(request_text, user_requests)
                     response = reaction + '\n' + next_question
                 
                 print(9)

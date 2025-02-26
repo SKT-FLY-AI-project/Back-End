@@ -55,12 +55,14 @@ async def describe_image(userid: str, file: UploadFile = File(...)):
 
         yield json.dumps({"status": "작품 제목 분석 중...", "completed": False}) + "\n"
         title = await predict_image(image)
+        artist = None
+        period = None
+        webpage = None
+        artwork_info = {}
         if isinstance(title, set):
             title = list(title)[0]
             artwork_info = search_artwork_by_title(title)
-        else: 
-            artwork_info = {}
-
+        
         title = artwork_info.get("title") if artwork_info else None
         artist = artwork_info.get("artist") if artwork_info else None
         period = artwork_info.get("period") if artwork_info else None

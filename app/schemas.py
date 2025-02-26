@@ -16,15 +16,15 @@ class LoginRequest(BaseModel):
     password: str
         
 class UpdateMyPageRequest(BaseModel):
-    difficulty_lv: str | None = None
-    description_st: str | None = None
-    clr_knowledge: bool | None = None
+    difficulty_lv: Optional[str] = None
+    description_st: Optional[str] = None
+    clr_knowledge: Optional[str] = None
     
 class ChatMessage(BaseModel):
     request: str
     image_url: str
     title: str
     artist: str
-    vlm_description: Optional[str] = None
+    rich_description: Optional[str] = None
     dominant_colors: Optional[List[List[int]]] = None
     conversation_id: Optional[str] = None  # 기존 대화를 이어가기 위한 ID

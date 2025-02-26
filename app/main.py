@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.routers import auth, mypage, description, chat, conversation
+from app.services.model_loader import llm_model
 from app.database import init_database
 
 app = FastAPI()
@@ -25,6 +26,7 @@ def init_app(app):
     @app.on_event("startup")
     async def startup_event():
         print("Server started")
+        llm_model.load_model()
         await init_database()
 
 # 애플리케이션 초기화

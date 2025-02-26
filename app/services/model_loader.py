@@ -1,5 +1,6 @@
 import tensorflow as tf
 import torch
+import asyncio
 from transformers import AutoModelForVision2Seq, AutoProcessor
 from app.config import MODEL_PATH
 
@@ -7,23 +8,25 @@ class CNNModel:
     def __init__(self):
         self.model = None
 
-    def load_model(self):
+    async def load_model(self):
         if self.model is None:
-            self.model = tf.keras.models.load_model(MODEL_PATH)
+            loop = asyncio.get_event_loop()
+            self.model = await loop.run_in_executor(None, lambda: tf.keras.models.load_model(MODEL_PATH))
 
-    def get_model(self):
+    async def get_model(self):
         if self.model is None:
-            self.load_model()
+            await self.load_model()
         return self.model
     
-    def __call__(self, x):
-        model = self.get_model()
-        return model.predict(x)
+    async def predict(self, img):
+        if self.model is None:
+            await self.load_model()
+        return self.model.predict(img)
     
 class LLMModel:
     def __init__(self):
-        # self.model_name = "Qwen/Qwen2.5-VL-3B-Instruct"
-        self.model_name = "Qwen/Qwen2-VL-2B-Instruct"
+        self.model_name = "Qwen/Qwen2.5-VL-3B-Instruct"
+        # self.model_name = "Qwen/Qwen2-VL-2B-Instruct"
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.dtype = torch.float16 if torch.cuda.is_available() else torch.float32
         self.model = None
@@ -36,8 +39,8 @@ class LLMModel:
             torch.cuda.empty_cache()
             self.model = AutoModelForVision2Seq.from_pretrained(
                 self.model_name,
-                torch_dtype=self.dtype,  # ✅ GPU는 FP16 사용, CPU는 FP32 사용
-                device_map=self.device, # 원래는 auto. CPU 쓸거면 cpu로 바꿔야함.
+                torch_dtype=self.dtype,
+                device_map=self.device,
                 max_memory={0: "10GiB", "cpu": "30GiB"}
             )
             self.processor = AutoProcessor.from_pretrained(self.model_name)

@@ -18,10 +18,8 @@ class CNNModel:
             await self.load_model()
         return self.model
     
-    async def __call__(self, x):
-        model = await self.get_model()
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, lambda: model.predict(x))
+    async def __call__(self, img):
+        return self.model.predict(img)
     
 class LLMModel:
     def __init__(self):

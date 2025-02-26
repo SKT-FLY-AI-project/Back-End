@@ -39,7 +39,7 @@ def preprocess_image(image_path, target_size=(224, 224)):
 # 예측 수행
 async def predict_image(image_path):
     img_array = preprocess_image(image_path)
-    prediction = cnn_model(img_array)
+    prediction = await cnn_model.predict(img_array)
     # print("전체 예측_확률:",prediction)
 
     max_prob = np.max(prediction)

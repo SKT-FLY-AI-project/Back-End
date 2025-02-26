@@ -41,9 +41,16 @@ async def generate_vlm_description_qwen(image_path):
             ],
         }
     ]
+    if image is None:
+        raise ValueError("Image is None!")
     
     text_input = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+    print(f"Text input: {text_input}")
+    print(f"Image type: {type(image)}")
+
     inputs = processor(text=[text_input], images=image, return_tensors="pt", padding=True).to(model.device)
+    print(f"Inputs before moving to device: {inputs}")
+
 
     loop = asyncio.get_event_loop()
     with torch.no_grad():

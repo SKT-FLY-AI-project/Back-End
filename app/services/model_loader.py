@@ -18,7 +18,9 @@ class CNNModel:
             await self.load_model()
         return self.model
     
-    async def __call__(self, img):
+    async def predict(self, img):
+        if self.model is None:
+            await self.load_model()
         return self.model.predict(img)
     
 class LLMModel:

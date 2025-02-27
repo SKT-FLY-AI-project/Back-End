@@ -11,6 +11,7 @@ from app.utils.image_processing import get_color_name
 from app.services.model_loader import llm_model  # 미리 로드된 모델 불러오기
 from app.utils.text_processing import clean_and_restore_spacing
 from app.config import client
+import sys
 
 async def generate_vlm_description_qwen(image_path):
     model, processor = llm_model.get_model()  # 로드된 모델 가져오기
@@ -41,15 +42,76 @@ async def generate_vlm_description_qwen(image_path):
             ],
         }
     ]
+    if image is None:
+        raise ValueError("Image is None!")
     
     text_input = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-    inputs = processor(text=[text_input], images=image, return_tensors="pt", padding=True).to(model.device)
+    print(f"Text input: {text_input}")
+    print(f"Image type: {type(image)}")
+
+    inputs = processor(text=[text_input], images=image, return_tensors="pt", padding=True)
+    print(f"Inputs before moving to device: {inputs}")
+
+
+    print("🚀 Debugging inputs before moving to GPU:")
+    sys.stdout.flush()  # 강제 출력
+
+    for key, value in inputs.items():
+        if isinstance(value, torch.Tensor):
+            inputs[key] = torch.nan_to_num(value, nan=0.0, posinf=1.0, neginf=0.0)
+
+    for key, value in inputs.items():
+        if isinstance(value, torch.Tensor):
+            print(f"🔹 {key} shape: {value.shape}, dtype: {value.dtype}, device: {value.device}")
+            sys.stdout.flush()  # 강제 출력
+
+            print(f"   Min: {value.min()}, Max: {value.max()}")
+            sys.stdout.flush()  # 강제 출력
+
+            print(f"   Any NaN? {torch.any(torch.isnan(value))}")
+            sys.stdout.flush()  # 강제 출력
+
+            print(f"   Any Inf? {torch.any(torch.isinf(value))}")
+            sys.stdout.flush()  # 강제 출력
+            print(f"   Unique values: {torch.unique(value)[:10]}")  # 유니크 값 일부 확인
+            sys.stdout.flush()  # 강제 출력
+    
+    # 🚀 2. `pixel_values` 정규화 (모델이 기대하는 범위로 변환)
+    if "pixel_values" in inputs:
+        print("🚨 Warning: Normalizing pixel_values")
+        sys.stdout.flush()
+        min_val, max_val = inputs["pixel_values"].min(), inputs["pixel_values"].max()
+        
+        # [-1, 1]로 정규화
+        inputs["pixel_values"] = 2 * ((inputs["pixel_values"] - min_val) / (max_val - min_val)) - 1
+
+    # 🚀 3. `int64` 값 유지 (잘못 변환되지 않도록)
+    # 모델이 기대하는 dtype에 맞게 변환
+    inputs["input_ids"] = inputs["input_ids"].long()  # 일반적으로 long 유지
+    inputs["attention_mask"] = inputs["attention_mask"].long()
+    inputs["image_grid_thw"] = inputs["image_grid_thw"].long()
+    
+    # 만약 `images` 값이 포함된다면 float32로 변환
+    if "images" in inputs:
+        inputs["images"] = inputs["images"].float()
+    
+    # 🚀 4. GPU로 이동 (`pixel_values`만 `float32` 변환)
+    device = model.device
+    inputs = {
+        k: v.to(device, dtype=torch.float32) if k == "pixel_values" else v.to(device)
+        for k, v in inputs.items() if isinstance(v, torch.Tensor)
+    }
+    
+    print("✅ Successfully moved inputs to GPU.")
+    sys.stdout.flush()
+
 
     loop = asyncio.get_event_loop()
     with torch.no_grad():
         outputs = await loop.run_in_executor(
-            None, lambda: model.generate(**inputs, max_new_tokens=512)
+            None, lambda: model.generate(**inputs, max_new_tokens=256)  # 512 → 256으로 변경
         )
+
 
     description = processor.batch_decode(outputs, skip_special_tokens=True, clean_up_tokenization_spaces=False)[0]
     description = clean_and_restore_spacing(processor.batch_decode(outputs, skip_special_tokens=True)[0])

@@ -115,8 +115,10 @@ async def detect(
             print(too_far, too_close, type(area_ratio))
             if too_far:
                 direction = "피사체가 너무 멉니다. 더 가까이 가세요."
+                is_centered = False
             elif too_close:
                 direction = "피사체가 너무 가깝습니다. 뒤로 이동하세요."
+                is_centered = False
             else:
                 direction = "피사체가 중앙에 위치했습니다."
         # else:

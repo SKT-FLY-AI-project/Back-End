@@ -211,114 +211,73 @@ import re
 def classify_user_input(user_input):
     """
     미술작품 감상 관련 대화를 정보 요청과 감상 표현으로 분류하는 함수
+    더 유연한 매칭과 unknown 상황 처리 개선
     """
-    keywords_info = {
-       # 작품 기본 정보
-       "무엇", "뭐", "어떤", "어떻게", "언제", "어디서", "누가", "왜",
-       "설명해", "알려줘", "가르쳐", "말해줘", "궁금해",
-       
-       # 작품 상세 정보
-       "제목", "년도", "시기", "크기", "소장", "전시", "보관",
-       "캔버스", "유화", "수채화", "판화", "소재", "재료",
-       "채색", "물감", "안료", "염료", "붓", "도구",
-       
-       # 작가 관련
-       "작가", "화가", "미술가", "예술가", "대가", "장인",
-       "유파", "화파", "학파", "스승", "제자", "영향",
-       "동시대", "같은 시기", "활동", "작품세계",
-       
-       # 작품 해석/의미
-       "의미", "상징", "해석", "메시지", "주제", "내용",
-       "모티프", "소재", "題材", "타이틀", "제재",
-       "구성", "구도", "배치", "화면", "장면",
-       
-       # 미술사/맥락
-       "미술사", "예술사", "당시", "시대", "운동", "사조",
-       "유파", "화파", "르네상스", "바로크", "인상주의",
-       "표현주의", "추상", "모더니즘", "컨템포러리",
-       
-       # 기법/표현
-       "기법", "테크닉", "기교", "화법", "묘사", "표현",
-       "원근법", "명암법", "농담", "채색", "스케치",
-       "데생", "드로잉", "터치", "붓질", "획", "선", "면",
-       "명암", "음영", "그라데이션", "질감", "마티에르"
-   }
-   
-    keywords_feeling = {
-        # 감상/인상
-        "느낌", "감정", "인상", "감동", "정서", "감성",
-        "분위기", "무드", "아우라", "기운", "기세",
-        "여운", "울림", "전율", "충격", "감흥",
-        
-        # 시각적 반응
-        "보이다", "눈에 띄다", "시선", "눈길", "주목",
-        "색감", "색채", "컬러", "톤", "색조", "색상",
-        "화려", "은은", "강렬", "부드럽", "차분", "고요",
-        
-        # 긍정적 평가
-        "좋다", "멋지다", "아름답", "우아", "품격", "기품",
-        "뛰어나다", "탁월", "완벽", "대단", "훌륭",
-        "세련", "정교", "섬세", "우수", "탁월", "빼어나",
-        
-        # 주관적 해석
-        "생각", "보입니다", "싶습니다", "것 같아요",
-        "연상", "떠올라요", "기억", "추억", "경험",
-        "공감", "이해", "와닿다", "닮았다", "유사",
-        
-        # 예술적 평가
-        "조화", "균형", "통일", "대비", "리듬", "율동",
-        "구성", "완성도", "독창", "창의", "혁신", "개성",
-        "특색", "특징", "개성", "독특", "참신", "획기적",
-        
-        # 감정 표현
-        "기쁘다", "슬프다", "평온", "불안", "고요", "역동",
-        "즐겁다", "우울하다", "따뜻", "차갑", "밝다", "어둡다",
-        "부드럽다", "거칠다", "강하다", "약하다"
-    }
-
-    def contains_keyword(text, keyword):
-        """
-        더 정확한 키워드 매칭을 위한 함수
-        """
-        pattern = fr'(^|[^\w]){keyword}([^\w]|$)'  # 'r' 접두사 추가
-        return bool(re.search(pattern, text))
-
-    def analyze_sentence_ending(text):
-        """
-        문장 끝맺음을 분석하여 의도 파악을 돕는 함수
-        """
-        if text.strip().endswith(('?', '까요?', '나요?', '죠?')):
-            return "info"
-        elif text.strip().endswith(('네요', '어요', '아요', '!', '~')):
-            return "feeling"
-        return None
-
-    # 키워드 매칭 확인 (정확한 매칭 사용)
-    info_count = sum(1 for keyword in keywords_info if contains_keyword(user_input, keyword))
-    feeling_count = sum(1 for keyword in keywords_feeling if contains_keyword(user_input, keyword))
-   
-    # 문장 끝맺음 분석
-    ending_type = analyze_sentence_ending(user_input)
+    # 핵심 키워드 (어근 중심으로 - 활용형을 고려)
+    info_keywords = [
+        "무엇", "뭐", "어떤", "어떻", "언제", "어디", "누가", "누구", "왜",
+        "알려", "설명", "가르쳐", "말해", "궁금", "의미", "상징", "역사", 
+        "작가", "화가", "제목", "년도", "시기", "소장", "기법", "어디",
+        "만든", "만들", "그린", "그리", "제작", "창작", "태어", "출생",
+        "어느", "어떠", "방법", "방식", "이유", "자세", "정확", "자세히"
+    ]
     
-    # 가중치를 둔 최종 분류
-    if ending_type:
-        # 문장 끝맺음이 명확한 경우, 이를 우선 고려
-        if ending_type == "info" and info_count > 0:
-            return "info"
-        elif ending_type == "feeling" and feeling_count > 0:
-            return "feeling"
+    feeling_keywords = [
+        "느낌", "감정", "인상", "아름", "멋지", "좋", "마음", 
+        "같아", "보여", "느껴", "연상", "생각", "보입",
+        "들어", "감동", "슬", "기쁘", "예쁘", "아름", "훌륭",
+        "색감", "분위기", "표현", "터치", "매력", "강렬", "부드럽",
+        "정말", "참", "너무", "매우", "굉장", "놀라", "인상적"
+    ]
     
-    # 키워드 기반 분류
-    if info_count > feeling_count:
+    # 문장 타입별 점수
+    info_score = 0
+    feeling_score = 0
+    
+    # 키워드 유연 매칭
+    for kw in info_keywords:
+        if kw in user_input:
+            info_score += 1
+    
+    for kw in feeling_keywords:
+        if kw in user_input:
+            feeling_score += 1
+    
+    # 문장 끝맺음 체크 (가중치 높게)
+    if re.search(r'(\?|까요\?|나요\?|인가요\?|려면\?|세요\?|을까요\?|가요\?)', user_input):
+        info_score += 2
+    
+    if re.search(r'(네요|어요|아요|군요|습니다|입니다|예요|에요|!|\~)', user_input):
+        feeling_score += 2
+    
+    # unknown 상황 처리 전략
+    if info_score == 0 and feeling_score == 0:
+        # 1. 짧은 문장은 정보 요청으로 간주 (많은 질문이 짧음)
+        if len(user_input) < 10:
+            return "info"
+        
+        # 2. 문장 구조 분석 - 의문문 패턴
+        if re.search(r'(이|가|은|는|에|이게|저것|저 그림) (뭐|무엇|어디|누구)', user_input):
+            return "info"
+        
+        # 3. 부분 매칭 - 추가 패턴
+        if any(pattern in user_input for pattern in ["작품", "그림", "미술", "언제", "어디", "누가"]):
+            return "info"
+        
+        # 4. 기본값 설정 - 대부분의 미술관 대화는 정보 요청일 가능성이 높음
         return "info"
-    elif feeling_count > info_count:
+    
+    # 기본 분류 로직
+    if info_score > feeling_score:
+        return "info"
+    elif feeling_score > info_score:
         return "feeling"
-    elif info_count > 0 and info_count == feeling_count:
-        # 동점인 경우 문장 끝맺음으로 판단
-        return ending_type if ending_type else "mixed"
     else:
-        # 키워드가 없는 경우 문장 끝맺음으로 판단
-        return ending_type if ending_type else "unknown"
+        # 동점인 경우, 짧은 메시지는 보통 질문일 확률이 높으므로 info로
+        if len(user_input) < 15:
+            return "info"
+        else:
+            return "mixed"
 
 # 미술작품 RAG 관련 함수
 # 1. 텍스트 데이터 로드

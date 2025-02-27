@@ -78,13 +78,12 @@ async def websocket_endpoint(
                 # LLM으로 응답 생성
                 input_type = classify_user_input(request)
                 print(input_type)
-                if input_type in ("info", "mixed"):
+                if input_type in ("info"):
                     response = answer_user_question(request, user_requests, title, artist, rich_description, vector_store)
-                
-                elif input_type in ("feeling", "unknown"):
+                else:
                     reaction, next_question = generate_vts_response(request, user_requests)
                     response = reaction + "\n" + next_question
-
+                
                 print(9)
                 print(input_type)
                 print(response)

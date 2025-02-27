@@ -101,6 +101,8 @@ async def detect(
                 
             if abs(distance_x) >= threshold:
                 direction += " "
+            else:
+                direction += "으로"
                 
         if abs(distance_x) >= threshold:
             if distance_x < 0:

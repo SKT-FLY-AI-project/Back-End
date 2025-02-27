@@ -7,6 +7,7 @@ import torch
 from langchain.prompts import PromptTemplate
 from sentence_transformers import SentenceTransformer, util
 import asyncio
+import pickle
 
 from app.utils.image_processing import get_color_name
 from app.services.model_loader import llm_model  # 미리 로드된 모델 불러오기

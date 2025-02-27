@@ -19,4 +19,4 @@ qwen-vl-utils[decord]==0.0.8
 accelerate
 boto3
 sentence_transformers
-sys
+tf-keras

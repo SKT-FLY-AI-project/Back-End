@@ -45,3 +45,4 @@ app/api/router/tmp/
 app/tmp/
 *.h5
 *.pkl
+*.jpg

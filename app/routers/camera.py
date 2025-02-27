@@ -78,10 +78,19 @@ async def detect(
         distance_y = (object_center_y - center_y) / height
         
         threshold = 0.1
-        # 객체가 중앙에 있는지 확인 (중앙에서 ±5% 이내)
+        # 객체가 중앙에 있는지 확인 (중앙에서 ±10% 이내)
         is_centered = abs(distance_x) < threshold and abs(distance_y) < threshold
         
-        # # 중앙으로 이동하기 위한 방향 안내
+        # 객체의 크기가 적절한지 확인 (이미지 프레임 대비)
+        area = (x2 - x1) * (y2 - y1)
+        frame_area = width * height
+        area_ratio = area / frame_area
+        
+        # 적정 거리 기준 (프레임 대비 객체 크기 비율)
+        too_close = area_ratio > 0.9  # 전체 이미지의 70% 이상을 차지하면 너무 가까움
+        too_far = area_ratio < 0.45    # 전체 이미지의 15% 미만을 차지하면 너무 멈
+        
+        # 중앙으로 이동하기 위한 방향 안내
         direction = "카메라를 "
         
         if abs(distance_x) >= threshold:
@@ -99,28 +108,22 @@ async def detect(
             else:
                 direction += "왼쪽"
                 
-        # 중앙으로 이동하기 위한 방향 안내
-        # direction = "객체를 "
-        
-        # if abs(distance_x) >= threshold:
-        #     if distance_x < 0:
-        #         direction += "ㅇ쪽"
-        #     else:
-        #         direction += "오른쪽"
-                
-        #     if abs(distance_y) >= threshold:
-        #         direction += "과 "
-                
-        # if abs(distance_y) >= threshold:
-        #     if distance_y < 0:
-        #         direction += "위쪽"
-        #     else:
-        #         direction += "아래쪽"
-                
         direction += "으로 이동하세요"
         
         if is_centered:
-            direction = "피사체가 중앙에 위치했습니다."
+            print(area, frame_area, area_ratio)
+            print(too_far, too_close, type(area_ratio))
+            if too_far:
+                direction = "피사체가 너무 멉니다. 더 가까이 가세요."
+            elif too_close:
+                direction = "피사체가 너무 가깝습니다. 뒤로 이동하세요."
+            else:
+                direction = "피사체가 중앙에 위치했습니다."
+        # else:
+        #     if too_close:
+        #         direction += ". 피사체가 너무 가깝습니다."
+        #     elif too_far:
+        #         direction += ". 피사체가 너무 멉니다."
         
         # 객체 클래스와 신뢰도
         confidence = float(confidences[best_idx])
@@ -161,6 +164,8 @@ async def detect(
         response_data = {
             "detected": True,
             "centered": is_centered,
+            "too_close": too_close,
+            "too_far": too_far,
             "x": x1,
             "y": y1,
             "width": x2 - x1,
@@ -169,6 +174,7 @@ async def detect(
             "center_y": int(object_center_y),
             "frame_width": width,
             "frame_height": height,
+            "area_ratio": float(area_ratio),
             "confidence": confidence,
             "class_id": class_id,
             "direction": direction

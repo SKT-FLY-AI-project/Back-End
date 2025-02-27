@@ -25,8 +25,8 @@ class CNNModel:
     
 class LLMModel:
     def __init__(self):
-        self.model_name = "Qwen/Qwen2.5-VL-3B-Instruct"
-        # self.model_name = "Qwen/Qwen2-VL-2B-Instruct"
+        # self.model_name = "Qwen/Qwen2.5-VL-3B-Instruct"
+        self.model_name = "Qwen/Qwen2-VL-2B-Instruct"
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.dtype = torch.float16 if torch.cuda.is_available() else torch.float32
         self.model = None

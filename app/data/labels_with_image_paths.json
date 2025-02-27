@@ -4157,7 +4157,6 @@
         "file_path": "data/seoul\\파리 인 블루.png",
         "artist_display_name": "Michel Henry"
     },
-
     {
         "object_number": "12.20.22",
         "title": "포도와 꽃다발",
@@ -4167,6 +4166,39 @@
         "object_date": "Unknown",
         "image_url": "Unknown",
         "file_path": "data/seoul\\포도와 꽃다발.png",
+        "artist_display_name": "Michel Henry"
+    },
+    {
+        "object_number": "12.20.23",
+        "title": "별이 빛나는 밤",
+        "department": "European Paintings",
+        "culture": "네덜란드",
+        "period": "(1853 - 1890)",
+        "object_date": "1889",
+        "image_url": "Unknown",
+        "file_path": "data/seoul\\별빛밤1.jpg",
+        "artist_display_name": "빈센트 빌럼 반고흐"
+    },
+    {
+        "object_number": "12.20.24",
+        "title": "여름의 베퇴유",
+        "department": "European Paintings",
+        "culture": "French",
+        "period": "(1840 - 1926)",
+        "object_date": "1880",
+        "image_url": "Unknown",
+        "file_path": "data/seoul\\여름의베퇴유1.jpg",
+        "artist_display_name": "클로드 모네"
+    },
+    {
+        "object_number": "12.20.25",
+        "title": "미모사 향기 가득한 베니스",
+        "department": "European Paintings",
+        "culture": "French",
+        "period": "(1928 - 2016)",
+        "object_date": "Unknown",
+        "image_url": "Unknown",
+        "file_path": "data/henry\\미모사 향기 가득한 베니스.png",
         "artist_display_name": "Michel Henry"
     }
 ]

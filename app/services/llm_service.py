@@ -122,7 +122,7 @@ async def generate_vlm_description_qwen(image_path):
     
     return description
 
-async def generate_rich_description(title, artist, correct_period, webpage, vlm_desc, dominant_colors, edges=[]):
+async def generate_rich_description(title, artist, correct_period, vlm_desc, dominant_colors, edges=[]):
     """
     AI가 생성한 기본 설명을 기반으로 보다 풍부한 그림 설명을 생성하는 함수.
     """
@@ -137,12 +137,11 @@ async def generate_rich_description(title, artist, correct_period, webpage, vlm_
         "vlm_desc": vlm_desc,
         "dominant_colors": colors_text,
         "edges_detected": "명확히 탐지됨" if np.sum(edges) > 10000 else "불명확하게 탐지됨",
-        "correct_period": correct_period,
-        "webpage": webpage
+        "correct_period": correct_period
     }
     
     prompt_template = ""
-    if title is None:
+    if artist is None:
         prompt_template = PromptTemplate(
             input_variables=["vlm_desc", "dominant_colors", "edges_detected"],
             template="""
@@ -176,9 +175,7 @@ async def generate_rich_description(title, artist, correct_period, webpage, vlm_
             너무 학문적인 설명보다는, 편안한 대화처럼 표현해 주세요.
             200~300자 정도로 간결하고 감성적으로 작성해 주세요.
             설명은 반드시 **한글(가-힣)과 영어(a-z)만 사용하여 작성해야 합니다.**
-            숫자, 특수문자, 한자는 포함할 수 없습니다.  
-
-            {webpage}
+            숫자, 특수문자, 한자는 포함할 수 없습니다.
             """
         )
 
@@ -381,10 +378,8 @@ def retrieve_relevant_info(precomputed_data, query, title, artist, top_k=20, thr
 def answer_user_question(user_response, conversation_history, title, artist, rich_description, precomputed_data):
     """RAG를 활용하여 미술 작품 관련 질문에 답변하는 함수"""
     # 대화 맥락 정리
-    print("why...")
     context = "\n".join(conversation_history[-3:])  # 최근 3개만 유지 (메모리 최적화)
     print(context)
-    print("why")
     # RAG: 질문에 관련된 정보 검색
     retrieved_info = retrieve_relevant_info(precomputed_data, user_response, title, artist, top_k=20, threshold=0.45)
     print(retrieved_info)
@@ -412,7 +407,7 @@ def answer_user_question(user_response, conversation_history, title, artist, ric
     숫자, 특수문자, 한자는 포함할 수 없습니다.
     **검색해서 진위여부가 확실하게 검증된 답변만 작성하세요**
     """
-    print("왜왜")
+    
     # LLM으로 답변 생성
     completion = client.chat.completions.create(
         model="qwen-2.5-coder-32b",
@@ -421,7 +416,7 @@ def answer_user_question(user_response, conversation_history, title, artist, ric
         max_tokens=512,
         top_p=0.95
     )
-    print("안되지")
+    
     return completion.choices[0].message.content.strip()
 
 def recommend_vts_question(user_response, previous_questions):

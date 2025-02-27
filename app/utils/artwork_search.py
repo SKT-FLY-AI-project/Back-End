@@ -25,8 +25,7 @@ def search_artwork_by_title(title):
             return {
                 "title": title_translations if title_translations else title,
                 "artist": artist_translations if artist_translations else artist,
-                "period": entry["period"],
-                "webpage": entry["webpage"]
+                "period": entry["period"]
             }
     
     # 해당 작품이 없을 경우 Untitled로 처리

@@ -71,7 +71,7 @@ async def websocket_endpoint(
                 print(7)
                 # 새로운 메시지 추가
                 await save_message(db, conversation.id, "user", request)
-                user_requests = [msg["content"] for msg in conversation_history if msg["role"] == "user"]
+                user_requests = [msg["content"] for msg in conversation_history]
                 user_requests.append(request)
                 
                 print(8)

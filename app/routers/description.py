@@ -46,30 +46,30 @@ async def describe_image(userid: str, file: UploadFile = File(...)):
         cv2.imwrite(processed_file_path, cv2.cvtColor(image, cv2.COLOR_RGB2BGR))
         s3_url = s3_manager.upload_file(processed_file_path, f"{userid}/processed_{file_name}")
 
+
+        yield json.dumps({"status": "작품 제목 분석 중...", "completed": False}) + "\n"
+        title = await predict_image(image)
+        artist = None
+        period = None
+        artwork_info = {}
+        
+        if isinstance(title, set):
+            title = list(title)[0]
+            artwork_info = search_artwork_by_title(title)
+        
+        title = title if title != "Unknown Title" else None
+        artist = artwork_info.get("artist") if artwork_info else None
+        period = artwork_info.get("period") if artwork_info else None
+        
         yield json.dumps({"status": "설명 생성 중...", "completed": False}) + "\n"
         vlm_description = await generate_vlm_description_qwen(file_path)
         if isinstance(vlm_description, str):
             vlm_description = [vlm_description]
         if not vlm_description:
             vlm_description = ["설명을 생성할 수 없습니다."]
-
-        yield json.dumps({"status": "작품 제목 분석 중...", "completed": False}) + "\n"
-        title = await predict_image(image)
-        artist = None
-        period = None
-        webpage = None
-        artwork_info = {}
-        if isinstance(title, set):
-            title = list(title)[0]
-            artwork_info = search_artwork_by_title(title)
-        
-        title = artwork_info.get("title") if artwork_info else None
-        artist = artwork_info.get("artist") if artwork_info else None
-        period = artwork_info.get("period") if artwork_info else None
-        webpage = artwork_info.get("webpage") if artwork_info else None
         
         yield json.dumps({"status": "풍부한 설명 생성 중...", "completed": False}) + "\n"
-        rich_description = await generate_rich_description(title, artist, period, webpage, vlm_description[0], dominant_colors, edges)
+        rich_description = await generate_rich_description(title, artist, period, vlm_description[0], dominant_colors, edges)
 
         final_result = {
             "status": "완료",

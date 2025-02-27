@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from app.routers import auth, mypage, description, chat, conversation
+from app.routers import auth, mypage, description, chat, conversation, camera
 from app.services.model_loader import llm_model
 from app.database import init_database
 
@@ -19,6 +19,7 @@ app.include_router(mypage.router)
 app.include_router(description.router)
 app.include_router(chat.router)
 app.include_router(conversation.router)
+app.include_router(camera.router)
 app.mount("/static", StaticFiles(directory='./app/static'), name="static")
 
 # 앱 초기화

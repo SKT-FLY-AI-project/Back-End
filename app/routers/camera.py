@@ -93,22 +93,22 @@ async def detect(
         # 중앙으로 이동하기 위한 방향 안내
         direction = "카메라를 "
         
-        if abs(distance_x) >= threshold:
-            if distance_x < 0:
-                direction += "위쪽"
-            else:
-                direction += "아래쪽"
-                
-            if abs(distance_y) >= threshold:
-                direction += "과 "
-                
         if abs(distance_y) >= threshold:
             if distance_y < 0:
                 direction += "오른쪽"
             else:
                 direction += "왼쪽"
                 
-        direction += "으로 이동하세요"
+            if abs(distance_x) >= threshold:
+                direction += " "
+                
+        if abs(distance_x) >= threshold:
+            if distance_x < 0:
+                direction += "위로"
+            else:
+                direction += "아래로"
+                
+        direction += " 이동하세요"
         
         if is_centered:
             print(area, frame_area, area_ratio)
